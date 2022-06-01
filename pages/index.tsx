@@ -1,4 +1,5 @@
 import Layout from '../components/layout';
+import { useEffect } from 'react';
 
 export default function Page() {
   return (
