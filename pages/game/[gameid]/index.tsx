@@ -4,9 +4,6 @@ import useSwr from 'swr';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../../../components/leagues.module.css';
-const StatCard = dynamic(() => import('../../../components/StatCard'), {
-  ssr: false,
-});
 
 const fetcher = (url: String) => fetch(url).then((res) => res.json());
 

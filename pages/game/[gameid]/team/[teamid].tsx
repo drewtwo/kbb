@@ -4,7 +4,7 @@ import useSwr from 'swr';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../../../../components/leagues.module.css';
-const StatCard = dynamic(() => import('../../../../components/StatCard'), {
+const StatCard = dynamic(() => import('../../../../components/statcard'), {
   ssr: false,
 });
 
@@ -86,7 +86,7 @@ const Team = () => {
   return (
     <Layout>
       <p>League Stats</p>
-      <ul className={leagueStyles.grid2}>
+      <div className={leagueStyles.grid2}>
         {stats_response.data.settings.stat_categories.stats.stat.map((stat) => (
           <div key={stat.name}>
             <StatCard
@@ -109,7 +109,7 @@ const Team = () => {
             ></StatCard>
           </div>
         ))}
-      </ul>
+      </div>
     </Layout>
   );
 };
