@@ -16,10 +16,14 @@ export default async function teams(
 ) {
   try {
     const { id } = req.query;
-    const league_teams = await getLeagueTeams(req, id);
-    const league_settings = await getLeagueSettings(req, id);
-    // console.log(league_info);
-    res.status(200).json({ teams: league_teams, settings: league_settings });
+    if (id !== undefined) {
+      const league_teams = await getLeagueTeams(req, id);
+      const league_settings = await getLeagueSettings(req, id);
+      // console.log(league_info);
+      res.status(200).json({ teams: league_teams, settings: league_settings });
+    } else {
+      res.status(500).json({ error: 'no league id provided' });
+    }
   } catch (err) {
     res.status(500).json({ error: 'failed to load data' });
   }

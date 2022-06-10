@@ -3,6 +3,8 @@ import https from 'https';
 import zlib from 'zlib';
 import xml2js from 'xml2js';
 import { NextApiRequest } from 'next';
+import { Stats } from 'fs';
+import { json } from 'stream/consumers';
 
 const secret = process.env.SECRET;
 
@@ -87,7 +89,6 @@ export const getLeagueTeams = async (
           var buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (err, dezipped) => {
             parser.parseString(dezipped.toString(), function (err, result) {
-              //   console.log(JSON.stringify(result));
               league = result.fantasy_content.league;
               resolve(league);
             });
@@ -138,9 +139,70 @@ export const getLeagueSettings = async (
           var buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (err, dezipped) => {
             parser.parseString(dezipped.toString(), function (err, result) {
-              //   console.log(JSON.stringify(result));
               league = result.fantasy_content.league.settings;
               resolve(league);
+            });
+          });
+        });
+      });
+
+      request.on('error', (error) => {
+        console.error(`Error on Get Request --> ${error}`);
+        let newError = { error: `Error on Get Request --> ${error}` };
+        resolve(newError);
+      });
+
+      request.end();
+    } catch (err) {
+      resolve({ error: 'failed to load data' });
+    }
+  });
+};
+
+export const getWeeklyStats = async (req: NextApiRequest, team_key: String) => {
+  let stats = await getWeekStats(req, team_key, '0');
+  let week = stats.week;
+  let result = [stats];
+  for (let index = week - 1; index > 0; index--) {
+    stats = await getWeekStats(req, team_key, index);
+    result.push(stats);
+  }
+  return result;
+};
+
+export const getWeekStats = async (
+  req: NextApiRequest,
+  team_key: String,
+  week: String
+) => {
+  return new Promise(async (resolve) => {
+    try {
+      let stats = {};
+      const token = await getToken({ req, secret });
+      const options = {
+        hostname: 'fantasysports.yahooapis.com',
+        port: 443,
+        path: `/fantasy/v2/team/${team_key}/stats;type=week;week=${week}`,
+        method: 'GET',
+        headers: {
+          Accept: '*/*',
+          'accept-encoding': 'gzip,deflate',
+          Authorization: `Bearer ${token?.accessToken}`,
+        },
+      };
+
+      const request = https.request(options, (response) => {
+        var chunks: any[] = [];
+        response.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+
+        response.on('end', function () {
+          var buffer = Buffer.concat(chunks);
+          zlib.gunzip(buffer, (err, dezipped) => {
+            parser.parseString(dezipped.toString(), function (err, result) {
+              stats = result.fantasy_content.team.team_stats;
+              resolve(stats);
             });
           });
         });

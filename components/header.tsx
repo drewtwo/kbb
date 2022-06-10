@@ -11,10 +11,6 @@ export default function Header() {
   const { data: session, status } = useSession();
   const loading = status === 'loading';
 
-  useEffect(() => {
-    console.log(JSON.stringify(session));
-  });
-
   return (
     <header>
       <noscript>
