@@ -1,4 +1,4 @@
-import { cr } from 'react-ui-cards';
+import { CryptoCard } from 'react-ui-cards';
 
 export function generateAvatar(team) {
   if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
