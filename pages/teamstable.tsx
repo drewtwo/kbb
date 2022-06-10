@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../components/leagues.module.css';
 import Layout from '../components/layout';
-const LeagueCard = dynamic(() => import('../components/LeagueCard'), {
+const LeagueCard = dynamic(() => import('../components/leaguecard'), {
   ssr: false,
 });
 
