@@ -1,4 +1,6 @@
-import { UserCard } from 'react-ui-cards';
+// import { UserCard } from 'react-ui-cards';
+import Link from 'next/link';
+import Image from 'next/image';
 
 export function generateAvatar(team) {
   if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
@@ -15,14 +17,24 @@ export function generateAvatar(team) {
 }
 
 const LeagueCard = ({ game, team }) => (
-  <UserCard
-    float
-    href={`/game/${team.team_key.split('.t')[0]}`}
-    header="https://i.imgur.com/vRAtM3i.jpg"
-    avatar={generateAvatar(team)}
-    name={team.name}
-    positionName={`${game.name} ${game.season}`}
-  />
+  <div>
+    <Link href={`/game/${team.team_key.split('.t')[0]}`}>
+      <div>
+        <p>{team.name}</p>
+        <p>{game.name}</p>
+        <p>{game.season}</p>
+        <img src={generateAvatar(team)} alt={'image not found'} />
+      </div>
+    </Link>
+  </div>
+  // <UserCard
+  //   float
+  //   href={`/game/${team.team_key.split('.t')[0]}`}
+  //   header="https://i.imgur.com/vRAtM3i.jpg"
+  //   avatar={generateAvatar(team)}
+  //   name={team.name}
+  //   positionName={`${game.name} ${game.season}`}
+  // />
 );
 
 export default LeagueCard;

@@ -1,4 +1,4 @@
-import { CryptoCard } from 'react-ui-cards';
+// import { CryptoCard } from 'react-ui-cards';
 
 export function generateAvatar(team) {
   if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
@@ -22,15 +22,19 @@ const StatCard = ({
   currentValue,
   chartData,
 }) => (
-  <CryptoCard
-    currencyName={name}
-    currencyPrice={currentValue}
-    currencyShortName={shortName}
-    trend={delta}
-    trendDirection={deltaDirection}
-    chartColor={'green'}
-    chartData={chartData}
-  />
+  <div>
+    <p>{name}</p>
+    <p>{chartData}</p>
+  </div>
+  // <CryptoCard
+  //   currencyName={name}
+  //   currencyPrice={currentValue}
+  //   currencyShortName={shortName}
+  //   trend={delta}
+  //   trendDirection={deltaDirection}
+  //   chartColor={'green'}
+  //   chartData={chartData}
+  // />
 );
 
 export default StatCard;
