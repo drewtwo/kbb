@@ -1,4 +1,24 @@
-// import { CryptoCard } from 'react-ui-cards';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export function generateAvatar(team) {
   if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
@@ -14,6 +34,15 @@ export function generateAvatar(team) {
   }
 }
 
+function generateLabels(chartData) {
+  var array = [];
+  var i = 1;
+  for (let i = 0; i < chartData.length; i++) {
+    array[i] = i + 1;
+  }
+  return array;
+}
+
 const StatCard = ({
   name,
   shortName,
@@ -23,8 +52,19 @@ const StatCard = ({
   chartData,
 }) => (
   <div>
-    <p>{name}</p>
-    <p>{chartData}</p>
+    <Line
+      datasetIdKey="test"
+      data={{
+        labels: generateLabels(chartData),
+        datasets: [
+          {
+            id: 1,
+            label: name,
+            data: chartData,
+          },
+        ],
+      }}
+    />
   </div>
   // <CryptoCard
   //   currencyName={name}

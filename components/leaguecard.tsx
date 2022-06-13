@@ -1,4 +1,3 @@
-// import { UserCard } from 'react-ui-cards';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -23,18 +22,15 @@ const LeagueCard = ({ game, team }) => (
         <p>{team.name}</p>
         <p>{game.name}</p>
         <p>{game.season}</p>
-        <img src={generateAvatar(team)} alt={'image not found'} />
+        <Image
+          src={generateAvatar(team)}
+          alt={'image not found'}
+          width={500}
+          height={500}
+        />
       </div>
     </Link>
   </div>
-  // <UserCard
-  //   float
-  //   href={`/game/${team.team_key.split('.t')[0]}`}
-  //   header="https://i.imgur.com/vRAtM3i.jpg"
-  //   avatar={generateAvatar(team)}
-  //   name={team.name}
-  //   positionName={`${game.name} ${game.season}`}
-  // />
 );
 
 export default LeagueCard;
