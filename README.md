@@ -1,6 +1,6 @@
-# KBB - Knowledge Base Builder
+# King Bee Baseball
 
-A comprehensive knowledge base management system built with modern web technologies. This project provides a robust platform for creating, managing, and organizing knowledge base content with advanced features like OAuth authentication, real-time updates, and comprehensive search capabilities.
+A Yahoo Fantasy League statistics viewer with interactive charts and real-time data visualization. This project provides a modern web interface for viewing and analyzing fantasy baseball league statistics, team performance metrics, and game data.
 
 ## Table of Contents
 
@@ -16,16 +16,17 @@ A comprehensive knowledge base management system built with modern web technolog
 
 ## Overview
 
-KBB is a full-stack knowledge base management application designed to help teams organize, share, and maintain their collective knowledge. The platform supports multiple authentication methods, real-time collaboration features, and a powerful search engine to quickly locate information.
+King Bee Baseball is a Next.js-based fantasy baseball statistics viewer that integrates with Yahoo Fantasy Sports API to display league data, team statistics, and performance charts. The platform supports OAuth authentication and provides real-time data visualization with an intuitive user interface.
 
 ### Key Features
 
-- **User Authentication**: OAuth 2.0 integration with multiple providers
-- **Knowledge Base Management**: Create, edit, and organize knowledge base articles
-- **Search & Discovery**: Full-text search capabilities with advanced filtering
-- **Real-time Updates**: Live synchronization across multiple clients
-- **Role-based Access Control**: Granular permission management
-- **API-First Architecture**: RESTful API with comprehensive documentation
+- **Yahoo Fantasy League Integration**: Direct integration with Yahoo Fantasy Sports API
+- **Interactive Charts**: Visualize team statistics and performance metrics with Chart.js
+- **Team Statistics**: View detailed team stats, player performance, and league standings
+- **Game Data**: Track game results and upcoming matchups
+- **OAuth Authentication**: Secure login via GitHub and Yahoo Fantasy Sports
+- **Real-time Updates**: Live data synchronization with Yahoo Fantasy API
+- **Responsive Design**: Mobile-friendly interface for all devices
 
 ## Prerequisites
 
@@ -34,8 +35,6 @@ Before you begin, ensure you have the following installed on your system:
 - **Node.js**: v16.0.0 or higher
 - **npm**: v7.0.0 or higher (or yarn v1.22.0+)
 - **Git**: For version control
-- **Docker** (optional): For containerized deployment
-- **PostgreSQL**: v12 or higher (if using local database)
 
 ### Verify Installation
 
@@ -76,15 +75,7 @@ cp .env.example .env.local
 
 See the [Environment Configuration](#environment-configuration) section for detailed setup instructions.
 
-### 4. Initialize the Database
-
-```bash
-npm run db:setup
-```
-
-This will create the necessary database tables and seed initial data if needed.
-
-### 5. Start Development Server
+### 4. Start Development Server
 
 ```bash
 npm run dev
@@ -101,122 +92,51 @@ Create a `.env.local` file in the project root with the following variables:
 ```env
 # Application
 NODE_ENV=development
-APP_NAME=KBB
 APP_URL=http://localhost:3000
 APP_PORT=3000
-APP_SECRET=your-secret-key-here
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/kbb_dev
-DATABASE_POOL_SIZE=10
-DATABASE_TIMEOUT=5000
-
-# Authentication
-AUTH_SECRET=your-auth-secret-key
-AUTH_ENABLED=true
-
-# OAuth - Google
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
+# NextAuth Configuration
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-nextauth-secret-key-here
 
 # OAuth - GitHub
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-GITHUB_CALLBACK_URL=http://localhost:3000/auth/github/callback
+GITHUB_ID=your-github-client-id
+GITHUB_SECRET=your-github-client-secret
 
-# OAuth - Microsoft
-MICROSOFT_CLIENT_ID=your-microsoft-client-id
-MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
-MICROSOFT_CALLBACK_URL=http://localhost:3000/auth/microsoft/callback
+# OAuth - Yahoo Fantasy Sports
+YAHOO_CLIENT_ID=your-yahoo-client-id
+YAHOO_CLIENT_SECRET=your-yahoo-client-secret
+YAHOO_CALLBACK_URL=http://localhost:3000/api/auth/callback/yahoo
 
-# Email Configuration
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-SMTP_FROM=noreply@kbb.local
-
-# API Configuration
-API_RATE_LIMIT=100
-API_RATE_LIMIT_WINDOW=15m
-
-# Logging
-LOG_LEVEL=info
-LOG_FORMAT=json
-
-# Session
-SESSION_SECRET=your-session-secret
-SESSION_TIMEOUT=86400
-
-# Redis (optional, for caching and sessions)
-REDIS_URL=redis://localhost:6379
-REDIS_DB=0
+# Yahoo Fantasy API
+YAHOO_API_BASE_URL=https://fantasysports.yahooapis.com/fantasy/v2
 ```
 
 ### OAuth Setup Guides
-
-#### Google OAuth
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable the Google+ API
-4. Create OAuth 2.0 credentials (Web application)
-5. Add authorized redirect URIs:
-   - `http://localhost:3000/auth/google/callback` (development)
-   - `https://yourdomain.com/auth/google/callback` (production)
-6. Copy the Client ID and Client Secret to your `.env.local`
 
 #### GitHub OAuth
 
 1. Go to [GitHub Settings > Developer settings > OAuth Apps](https://github.com/settings/developers)
 2. Click "New OAuth App"
 3. Fill in the application details:
-   - Application name: KBB
+   - Application name: King Bee Baseball
    - Homepage URL: `http://localhost:3000`
-   - Authorization callback URL: `http://localhost:3000/auth/github/callback`
+   - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
 4. Copy the Client ID and Client Secret to your `.env.local`
 
-#### Microsoft OAuth
+#### Yahoo Fantasy Sports OAuth
 
-1. Go to [Azure Portal](https://portal.azure.com/)
-2. Navigate to Azure Active Directory > App registrations
-3. Click "New registration"
-4. Configure redirect URIs:
-   - `http://localhost:3000/auth/microsoft/callback` (development)
-   - `https://yourdomain.com/auth/microsoft/callback` (production)
-5. Create a client secret
-6. Copy the Application (client) ID and client secret to your `.env.local`
-
-### Database Configuration
-
-#### PostgreSQL Setup
-
-```bash
-# Create database
-createdb kbb_dev
-
-# Run migrations
-npm run db:migrate
-
-# Seed initial data (optional)
-npm run db:seed
-```
-
-#### Using Docker
-
-```bash
-# Start PostgreSQL in Docker
-docker run --name kbb-postgres \
-  -e POSTGRES_USER=kbb_user \
-  -e POSTGRES_PASSWORD=kbb_password \
-  -e POSTGRES_DB=kbb_dev \
-  -p 5432:5432 \
-  -d postgres:14
-
-# Update DATABASE_URL in .env.local
-DATABASE_URL=postgresql://kbb_user:kbb_password@localhost:5432/kbb_dev
-```
+1. Go to [Yahoo Developer Network](https://developer.yahoo.com/)
+2. Sign in with your Yahoo account
+3. Create a new application:
+   - Go to "My Apps" > "Create an App"
+   - Application name: King Bee Baseball
+   - Application type: Web Application
+4. Configure OAuth settings:
+   - Redirect URI(s): `http://localhost:3000/api/auth/callback/yahoo`
+5. Accept the terms and create the application
+6. Copy the Client ID and Client Secret to your `.env.local`
+7. Note: Yahoo Fantasy API requires OAuth 2.0 authentication for all requests
 
 ## Available Scripts
 
@@ -226,10 +146,7 @@ DATABASE_URL=postgresql://kbb_user:kbb_password@localhost:5432/kbb_dev
 # Start development server with hot reload
 npm run dev
 
-# Start development server with debugging
-npm run dev:debug
-
-# Run development server on specific port
+# Start development server on specific port
 npm run dev -- --port 3001
 ```
 
@@ -241,50 +158,6 @@ npm run build
 
 # Start production server
 npm run start
-
-# Build and start in one command
-npm run build && npm run start
-```
-
-### Database
-
-```bash
-# Run database migrations
-npm run db:migrate
-
-# Rollback last migration
-npm run db:rollback
-
-# Seed database with initial data
-npm run db:seed
-
-# Reset database (development only)
-npm run db:reset
-
-# Generate migration file
-npm run db:generate-migration <name>
-```
-
-### Testing
-
-```bash
-# Run all tests
-npm run test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run specific test file
-npm run test -- <filename>
-
-# Run integration tests
-npm run test:integration
-
-# Run e2e tests
-npm run test:e2e
 ```
 
 ### Code Quality
@@ -295,50 +168,6 @@ npm run lint
 
 # Fix ESLint issues
 npm run lint:fix
-
-# Run TypeScript type checking
-npm run type-check
-
-# Format code with Prettier
-npm run format
-
-# Check code formatting
-npm run format:check
-
-# Run all quality checks
-npm run quality-check
-```
-
-### Documentation
-
-```bash
-# Generate API documentation
-npm run docs:api
-
-# Generate project documentation
-npm run docs:generate
-
-# Serve documentation locally
-npm run docs:serve
-```
-
-### Utilities
-
-```bash
-# Clean build artifacts
-npm run clean
-
-# Install dependencies
-npm install
-
-# Update dependencies
-npm update
-
-# Audit dependencies for vulnerabilities
-npm audit
-
-# Fix security vulnerabilities
-npm audit fix
 ```
 
 ## Project Structure
@@ -346,67 +175,46 @@ npm audit fix
 ```
 kbb/
 ├── src/
-│   ├── api/                    # API routes and controllers
-│   │   ├── auth/              # Authentication endpoints
-│   │   ├── articles/          # Article management endpoints
-│   │   ├── search/            # Search endpoints
-│   │   └── users/             # User management endpoints
-│   ├── components/            # React components
-│   │   ├── common/            # Reusable components
-│   │   ├── layout/            # Layout components
-│   │   ├── articles/          # Article-related components
-│   │   └── auth/              # Authentication components
-│   ├── pages/                 # Next.js pages
-│   │   ├── api/               # API routes
-│   │   ├── auth/              # Authentication pages
-│   │   ├── articles/          # Article pages
+│   ├── components/
+│   │   ├── LeagueCard/        # League display component
+│   │   ├── StatCard/          # Statistics card component
+│   │   ├── GameCard/          # Game information component
+│   │   ├── TeamStats/         # Team statistics display
+│   │   └── Charts/            # Chart components
+│   ├── pages/
+│   │   ├── api/
+│   │   │   ├── auth/          # NextAuth authentication routes
+│   │   │   ├── league/        # League data endpoints
+│   │   │   ├── team/          # Team statistics endpoints
+│   │   │   └── games/         # Game data endpoints
+│   │   ├── league/            # League pages
+│   │   ├── team/              # Team pages
+│   │   ├── games/             # Games pages
 │   │   └── index.tsx          # Home page
-│   ├── lib/                   # Utility functions and helpers
+│   ├── lib/
+│   │   ├── yahoo/             # Yahoo Fantasy API utilities
 │   │   ├── auth/              # Authentication utilities
-│   │   ├── db/                # Database utilities
-│   │   ├── api/               # API client utilities
+│   │   ├── charts/            # Chart configuration helpers
 │   │   └── utils/             # General utilities
-│   ├── middleware/            # Express/Next.js middleware
-│   │   ├── auth.ts            # Authentication middleware
-│   │   ├── errorHandler.ts    # Error handling middleware
-│   │   └── logging.ts         # Logging middleware
-│   ├── models/                # Data models and schemas
-│   │   ├── Article.ts
-│   │   ├── User.ts
-│   │   └── Category.ts
-│   ├── services/              # Business logic services
-│   │   ├── ArticleService.ts
-│   │   ├── UserService.ts
-│   │   ├── SearchService.ts
-│   │   └── AuthService.ts
-│   ├── types/                 # TypeScript type definitions
-│   │   ├── index.ts
-│   │   ├── api.ts
-│   │   └── models.ts
-│   ├── styles/                # Global styles
+│   ├── types/
+│   │   ├── index.ts           # Type definitions
+│   │   ├── league.ts          # League types
+│   │   ├── team.ts            # Team types
+│   │   └── game.ts            # Game types
+│   ├── styles/
 │   │   ├── globals.css
 │   │   └── variables.css
-│   └── config/                # Configuration files
-│       ├── database.ts
-│       ├── auth.ts
-│       └── constants.ts
+│   └── config/
+│       ├── constants.ts
+│       └── auth.ts
 ├── public/                    # Static assets
 │   ├── images/
-│   ├── icons/
-│   └── fonts/
-├── tests/                     # Test files
-│   ├── unit/                  # Unit tests
-│   ├── integration/           # Integration tests
-│   └── e2e/                   # End-to-end tests
-├── migrations/                # Database migrations
-├── docs/                      # Documentation
+│   └── icons/
 ├── .env.example               # Example environment variables
 ├── .env.local                 # Local environment variables (git ignored)
 ├── .eslintrc.json            # ESLint configuration
-├── .prettierrc.json          # Prettier configuration
 ├── tsconfig.json             # TypeScript configuration
 ├── next.config.js            # Next.js configuration
-├── jest.config.js            # Jest configuration
 ├── package.json              # Project dependencies
 └── README.md                 # This file
 ```
@@ -419,36 +227,20 @@ kbb/
 - **React**: UI library
 - **TypeScript**: Type-safe JavaScript
 - **Tailwind CSS**: Utility-first CSS framework
+- **Chart.js**: Interactive charting library
 - **SWR**: Data fetching library
-- **React Query**: Server state management
-- **Zustand**: Client state management
 
-### Backend
+### Backend & Integration
 
 - **Node.js**: JavaScript runtime
-- **Express.js**: Web framework
-- **TypeScript**: Type-safe JavaScript
-- **PostgreSQL**: Relational database
-- **Prisma**: ORM for database access
-- **Passport.js**: Authentication middleware
-- **JWT**: Token-based authentication
+- **NextAuth.js**: Authentication for Next.js
+- **xml2js**: XML to JSON parser for Yahoo API responses
+- **Axios**: HTTP client for API requests
 
 ### Development Tools
 
 - **ESLint**: Code linting
 - **Prettier**: Code formatting
-- **Jest**: Testing framework
-- **Cypress**: E2E testing
-- **Docker**: Containerization
-- **GitHub Actions**: CI/CD
-
-### DevOps & Deployment
-
-- **Docker**: Container platform
-- **Docker Compose**: Multi-container orchestration
-- **Vercel**: Frontend deployment (optional)
-- **Heroku**: Backend deployment (optional)
-- **GitHub Actions**: Continuous integration
 
 ## Troubleshooting
 
@@ -470,32 +262,27 @@ kill -9 <PID>
 npm run dev -- --port 3001
 ```
 
-#### Database Connection Error
+#### Yahoo OAuth Authentication Fails
 
-**Problem**: `Error: connect ECONNREFUSED 127.0.0.1:5432`
-
-**Solution**:
-```bash
-# Check if PostgreSQL is running
-pg_isready -h localhost -p 5432
-
-# Start PostgreSQL (macOS with Homebrew)
-brew services start postgresql
-
-# Start PostgreSQL (Linux with systemd)
-sudo systemctl start postgresql
-
-# Verify DATABASE_URL in .env.local is correct
-```
-
-#### OAuth Callback URL Mismatch
-
-**Problem**: `Error: Redirect URI mismatch`
+**Problem**: `Error: Invalid OAuth credentials` or redirect loop
 
 **Solution**:
-- Verify the callback URL in your OAuth provider settings matches exactly
-- Check for trailing slashes and protocol (http vs https)
-- Ensure APP_URL in .env.local matches your OAuth configuration
+- Verify YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET are correct in .env.local
+- Check that the redirect URI in Yahoo Developer settings matches exactly: `http://localhost:3000/api/auth/callback/yahoo`
+- Ensure NEXTAUTH_URL is set correctly to `http://localhost:3000`
+- Clear browser cookies and try again
+- Verify your Yahoo account has permission to access Fantasy Sports API
+
+#### Yahoo API Rate Limiting
+
+**Problem**: `Error: 429 Too Many Requests` or `Rate limit exceeded`
+
+**Solution**:
+- Yahoo Fantasy API has rate limits; implement request caching with SWR
+- Add delays between API requests in batch operations
+- Use the `revalidateOnFocus: false` option in SWR to reduce unnecessary requests
+- Cache API responses locally when possible
+- Check Yahoo API documentation for current rate limits
 
 #### Module Not Found
 
@@ -512,61 +299,50 @@ rm -rf .next
 npm run dev
 ```
 
-#### TypeScript Compilation Error
+#### Chart Not Displaying
 
-**Problem**: `error TS2307: Cannot find module`
-
-**Solution**:
-```bash
-# Run type checking
-npm run type-check
-
-# Rebuild TypeScript
-npm run build
-
-# Clear cache and rebuild
-rm -rf .next dist
-npm run build
-```
-
-#### Authentication Issues
-
-**Problem**: Session not persisting or login not working
+**Problem**: Charts appear blank or don't render
 
 **Solution**:
-- Verify SESSION_SECRET is set in .env.local
-- Check that cookies are enabled in your browser
-- Clear browser cookies and cache
-- Verify AUTH_ENABLED=true in .env.local
-- Check OAuth credentials are correct
+- Verify Chart.js is properly installed: `npm list chart.js`
+- Check that chart data is being fetched correctly
+- Ensure canvas elements have proper dimensions
+- Check browser console for JavaScript errors
+- Verify data format matches Chart.js requirements
 
-#### Slow Performance
+#### GitHub OAuth Not Working
 
-**Problem**: Application running slowly
+**Problem**: GitHub login fails or redirects incorrectly
 
 **Solution**:
-```bash
-# Check database query performance
-npm run db:analyze
-
-# Enable query logging
-LOG_LEVEL=debug npm run dev
-
-# Check for memory leaks
-npm run test:memory
-
-# Profile application
-npm run profile
-```
+- Verify GITHUB_ID and GITHUB_SECRET are correct
+- Check that callback URL in GitHub OAuth settings matches: `http://localhost:3000/api/auth/callback/github`
+- Ensure NEXTAUTH_SECRET is set in .env.local
+- Clear browser cookies and session storage
 
 ### Getting Help
 
 - Check the [GitHub Issues](https://github.com/drewtwo/kbb/issues)
-- Review the [Documentation](./docs)
-- Check logs: `tail -f logs/app.log`
-- Enable debug mode: `DEBUG=kbb:* npm run dev`
+- Review Yahoo Fantasy API documentation: https://developer.yahoo.com/fantasy/
+- Enable debug mode: `DEBUG=* npm run dev`
 
 ## Development Notes
+
+### Yahoo Fantasy API Integration
+
+- The Yahoo Fantasy API returns XML responses; use xml2js to parse them
+- All API requests require OAuth 2.0 authentication
+- API endpoints follow the pattern: `/fantasy/v2/league/{league_id}/...`
+- Cache API responses to minimize rate limit issues
+- Implement exponential backoff for failed requests
+
+### Chart Optimization
+
+- Use Chart.js with responsive options for mobile compatibility
+- Implement lazy loading for charts below the fold
+- Use data aggregation to reduce the number of data points
+- Consider using canvas rendering for better performance with large datasets
+- Implement chart animations carefully to avoid performance issues
 
 ### Code Style
 
@@ -579,7 +355,7 @@ This project follows strict code style guidelines:
 Run quality checks before committing:
 
 ```bash
-npm run quality-check
+npm run lint
 ```
 
 ### Git Workflow
@@ -601,36 +377,24 @@ body
 footer
 ```
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `chore`
 
 Example:
 ```
-feat(auth): add Google OAuth integration
+feat(league): add league statistics view
 
-Implement Google OAuth 2.0 authentication flow
-with automatic user profile sync.
+Implement league statistics page with team rankings
+and performance charts.
 
 Closes #123
-```
-
-### Testing Guidelines
-
-- Write tests for all new features
-- Aim for >80% code coverage
-- Use descriptive test names
-- Mock external dependencies
-
-```bash
-# Run tests before committing
-npm run test:coverage
 ```
 
 ### Performance Optimization
 
 - Use React.memo for expensive components
 - Implement code splitting with dynamic imports
-- Optimize database queries with proper indexing
-- Use caching strategies for API responses
+- Optimize API requests with SWR caching
+- Use Chart.js efficiently with proper data aggregation
 - Monitor bundle size: `npm run build -- --analyze`
 
 ### Security Best Practices
@@ -638,44 +402,26 @@ npm run test:coverage
 - Never commit secrets to version control
 - Use environment variables for sensitive data
 - Validate and sanitize all user inputs
-- Implement CSRF protection
 - Use HTTPS in production
 - Keep dependencies updated: `npm audit`
 - Review security advisories regularly
-
-### Database Best Practices
-
-- Always write migrations for schema changes
-- Test migrations in development first
-- Keep migrations small and focused
-- Document complex queries
-- Use indexes for frequently queried columns
-- Monitor query performance
+- Protect OAuth tokens securely
 
 ### Debugging
 
 Enable debug logging:
 
 ```bash
-DEBUG=kbb:* npm run dev
+DEBUG=* npm run dev
 ```
-
-Use VS Code debugger:
-
-```bash
-npm run dev:debug
-```
-
-Then attach VS Code debugger to the running process.
 
 ### Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Write/update tests
-5. Run quality checks
-6. Submit a pull request
+4. Run quality checks
+5. Submit a pull request
 
 ### License
 
