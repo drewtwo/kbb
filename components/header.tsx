@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { useEffect } from 'react';
 import styles from './header.module.css';
 
 // The approach used in this component shows how to built a sign in and sign out
@@ -66,47 +65,13 @@ export default function Header() {
       </div>
       <nav>
         <ul className={styles.navItems}>
-          <li className={styles.navItem}>
-            <Link href="/">
-              <a>Home</a>
-            </Link>
-          </li>
-          <li className={styles.navItem}>
-            <Link href="/client">
-              <a>Client</a>
-            </Link>
-          </li>
-          <li className={styles.navItem}>
-            <Link href="/server">
-              <a>Server</a>
-            </Link>
-          </li>
-          <li className={styles.navItem}>
-            <Link href="/protected">
-              <a>Protected</a>
-            </Link>
-          </li>
-          <li className={styles.navItem}>
-            <Link href="/api-example">
-              <a>API</a>
-            </Link>
-          </li>
-          <li className={styles.navItem}>
-            <Link href="/teams">
-              <a>Teams</a>
-            </Link>
-          </li>
-          <li className={styles.navItem}>
-            <Link href="/teamstable">
-              <a>Teams Table</a>
-            </Link>
-          </li>
-
-          <li className={styles.navItem}>
-            <Link href="/example">
-              <a>Example</a>
-            </Link>
-          </li>
+          {session && (
+            <li className={styles.navItem}>
+              <Link href="/teamstable">
+                <a>Teams</a>
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
     </header>
