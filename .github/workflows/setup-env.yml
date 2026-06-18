@@ -1,0 +1,42 @@
+name: Setup Environment
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  setup-env:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create .env.local from GitHub Secrets
+        run: |
+          cat > .env.local << EOF
+          NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
+          GITHUB_ID=${{ secrets.GITHUB_ID }}
+          GITHUB_SECRET=${{ secrets.GITHUB_SECRET }}
+          YAHOO_AUTH_URL=${{ secrets.YAHOO_AUTH_URL }}
+          YAHOO_TOKEN_URL=${{ secrets.YAHOO_TOKEN_URL }}
+          YAHOO_CLIENT_ID=${{ secrets.YAHOO_CLIENT_ID }}
+          YAHOO_CLIENT_SECRET=${{ secrets.YAHOO_CLIENT_SECRET }}
+          EOF
+
+      - name: Verify .env.local was created
+        run: |
+          if [ -f .env.local ]; then
+            echo ".env.local created successfully"
+            echo "Environment variables set:"
+            grep -v "^$" .env.local | cut -d= -f1
+          else
+            echo "ERROR: .env.local was not created"
+            exit 1
+          fi
