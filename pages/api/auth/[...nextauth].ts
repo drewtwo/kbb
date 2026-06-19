@@ -35,7 +35,7 @@ export default NextAuth({
       },
     },
   ],
-  secret: process.env.SECRET,
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     // Use JSON Web Tokens for session instead of database sessions.
     // This option can be used with or without a database for users/accounts.
@@ -56,7 +56,7 @@ export default NextAuth({
   // https://next-auth.js.org/configuration/options#jwt
   jwt: {
     // A secret to use for key generation (you should set this explicitly)
-    secret: process.env.SECRET,
+    secret: process.env.NEXTAUTH_SECRET,
     // Set to true to use encryption (default: false)
     // You can define your own encode/decode functions for signing and encryption
     // if you want to override the default behaviour.
