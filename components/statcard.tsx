@@ -61,6 +61,12 @@ const StatCard = ({
             id: 1,
             label: name,
             data: chartData,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            pointBackgroundColor: '#3b82f6',
+            pointBorderColor: '#3b82f6',
+            pointHoverBackgroundColor: '#1e40af',
+            pointHoverBorderColor: '#1e40af',
           },
         ],
       }}
