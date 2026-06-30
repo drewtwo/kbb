@@ -17,6 +17,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
       - name: Create .env.local from GitHub Secrets
         run: |
           cat > .env.local << EOF
@@ -40,3 +49,12 @@ jobs:
             echo "ERROR: .env.local was not created"
             exit 1
           fi
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Type check
+        run: yarn typecheck
+
+      - name: Build
+        run: yarn build
