@@ -1,4 +1,4 @@
-name: Setup Environment
+name: CI
 
 on:
   push:
@@ -16,6 +16,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
 
       - name: Create .env.local from GitHub Secrets
         run: |
@@ -40,3 +49,12 @@ jobs:
             echo "ERROR: .env.local was not created"
             exit 1
           fi
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Build
+        run: yarn build
