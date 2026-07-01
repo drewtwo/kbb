@@ -6,6 +6,24 @@ This document explains how to set up environment variables for local development
 
 The application uses NextAuth for authentication with support for GitHub and Yahoo OAuth providers. Proper environment configuration is critical for the application to function correctly.
 
+## NEXTAUTH_URL Behavior
+
+The application implements intelligent NEXTAUTH_URL resolution that automatically adapts to different deployment environments:
+
+### Local Development
+- If `NEXTAUTH_URL` is not set, defaults to `http://localhost:3000`
+- You can explicitly set it in `.env.local` if running on a different port
+
+### Vercel Preview Deployments
+- If `NEXTAUTH_URL` is not set, automatically uses `https://{VERCEL_URL}`
+- `VERCEL_URL` is automatically provided by Vercel for preview deployments
+- No additional configuration needed for preview deployments
+
+### Production Deployment
+- Must explicitly set `NEXTAUTH_URL` to your production domain
+- Example: `NEXTAUTH_URL=https://yourdomain.com`
+- This is configured as a GitHub Secret
+
 ## Local Development Setup
 
 ### 1. Create `.env.local` File
@@ -56,11 +74,16 @@ Copy the output and paste it as the value for `NEXTAUTH_SECRET` in `.env.local`.
    YAHOO_TOKEN_URL=https://api.login.yahoo.com/oauth2/get_token
    ```
 
-### 5. Set NEXTAUTH_URL
+### 5. Set NEXTAUTH_URL (Optional for Local Development)
 
-For local development:
+For local development, you can leave `NEXTAUTH_URL` unset (it will default to `http://localhost:3000`) or explicitly set it:
 ```
 NEXTAUTH_URL=http://localhost:3000
+```
+
+If you're running the development server on a different port, set it accordingly:
+```
+NEXTAUTH_URL=http://localhost:3001
 ```
 
 ### 6. Start the Development Server
@@ -83,16 +106,16 @@ Add the following secrets to your GitHub repository:
 2. Click "New repository secret"
 3. Add each of the following secrets:
 
-| Secret Name | Description |
-|-------------|-------------|
-| `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) |
-| `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) |
-| `GITHUB_ID` | GitHub OAuth App Client ID |
-| `GITHUB_SECRET` | GitHub OAuth App Client Secret |
-| `YAHOO_AUTH_URL` | Yahoo OAuth authorization URL |
-| `YAHOO_TOKEN_URL` | Yahoo OAuth token URL |
-| `YAHOO_CLIENT_ID` | Yahoo OAuth Client ID |
-| `YAHOO_CLIENT_SECRET` | Yahoo OAuth Client Secret |
+| Secret Name | Description | Required |
+|-------------|-------------|----------|
+| `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) | Yes |
+| `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) | Yes |
+| `GITHUB_ID` | GitHub OAuth App Client ID | Yes |
+| `GITHUB_SECRET` | GitHub OAuth App Client Secret | Yes |
+| `YAHOO_AUTH_URL` | Yahoo OAuth authorization URL | Yes |
+| `YAHOO_TOKEN_URL` | Yahoo OAuth token URL | Yes |
+| `YAHOO_CLIENT_ID` | Yahoo OAuth Client ID | Yes |
+| `YAHOO_CLIENT_SECRET` | Yahoo OAuth Client Secret | Yes |
 
 ### 2. GitHub Actions Workflow
 
@@ -102,21 +125,34 @@ The `.github/workflows/setup-env.yml` workflow automatically:
 2. Triggers on pull requests to `main` and `develop` branches
 3. Creates `.env.local` from GitHub Secrets
 4. Verifies the environment file was created successfully
+5. Runs linting, type checking, and build validation
 
 The workflow ensures that sensitive credentials are never committed to the repository.
+
+### 3. Preview Deployments (Vercel)
+
+For Vercel preview deployments:
+
+1. The `VERCEL_URL` environment variable is automatically provided by Vercel
+2. If `NEXTAUTH_URL` is not set in GitHub Secrets, the NextAuth configuration will automatically use `https://{VERCEL_URL}`
+3. No additional configuration is needed for preview deployments
 
 ## Environment Variables Reference
 
 ### Required Variables
 
 - **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption
-- **NEXTAUTH_URL**: The URL where your application is deployed
+- **NEXTAUTH_URL**: The URL where your application is deployed (required for production, optional for local/preview)
 - **GITHUB_ID**: GitHub OAuth App Client ID
 - **GITHUB_SECRET**: GitHub OAuth App Client Secret
 - **YAHOO_CLIENT_ID**: Yahoo OAuth Client ID
 - **YAHOO_CLIENT_SECRET**: Yahoo OAuth Client Secret
 - **YAHOO_AUTH_URL**: Yahoo OAuth authorization endpoint
 - **YAHOO_TOKEN_URL**: Yahoo OAuth token endpoint
+
+### Optional Variables
+
+- **VERCEL_URL**: Automatically provided by Vercel for preview deployments (used when NEXTAUTH_URL is not set)
 
 ## Troubleshooting
 
@@ -149,6 +185,7 @@ The workflow ensures that sensitive credentials are never committed to the repos
 1. Verify the redirect URI in your OAuth provider settings matches:
    - Local: `http://localhost:3000/api/auth/callback/[provider]`
    - Production: `https://yourdomain.com/api/auth/callback/[provider]`
+   - Preview: `https://{VERCEL_URL}/api/auth/callback/[provider]`
 2. Double-check Client ID and Client Secret values
 3. Regenerate credentials if needed
 4. Check browser console for detailed error messages
@@ -167,6 +204,21 @@ The workflow ensures that sensitive credentials are never committed to the repos
 2. Restart the development server: `npm run dev`
 3. Check that variable names match exactly (case-sensitive)
 
+### NEXTAUTH_URL Not Being Set Correctly
+
+**Symptom**: Application works locally but fails on preview or production deployment.
+
+**Causes**:
+1. `NEXTAUTH_URL` is not set in GitHub Secrets for production
+2. `NEXTAUTH_URL` is set to an incorrect URL
+3. OAuth provider redirect URIs don't match the deployment URL
+
+**Solution**:
+1. For production: Ensure `NEXTAUTH_URL` is set in GitHub Secrets to your production domain
+2. For preview deployments: Leave `NEXTAUTH_URL` unset in secrets, the system will use `VERCEL_URL` automatically
+3. Update OAuth provider redirect URIs to match your deployment URL
+4. Check the NextAuth logs to see what URL is being used
+
 ## Security Best Practices
 
 1. **Never commit `.env.local`**: This file is already in `.gitignore`
@@ -174,6 +226,8 @@ The workflow ensures that sensitive credentials are never committed to the repos
 3. **Use strong secrets**: Always generate secrets with sufficient entropy (e.g., `openssl rand -base64 32`)
 4. **Limit OAuth scopes**: Only request the minimum permissions needed
 5. **Keep dependencies updated**: Regularly update NextAuth and other security-related packages
+6. **Use HTTPS in production**: Always use HTTPS URLs for production deployments
+7. **Verify OAuth redirect URIs**: Ensure redirect URIs in OAuth provider settings exactly match your deployment URLs
 
 ## Additional Resources
 
@@ -181,3 +235,4 @@ The workflow ensures that sensitive credentials are never committed to the repos
 - [GitHub OAuth Documentation](https://docs.github.com/en/developers/apps/building-oauth-apps)
 - [Yahoo OAuth Documentation](https://developer.yahoo.com/oauth2/guide/)
 - [Environment Variables in Next.js](https://nextjs.org/docs/basic-features/environment-variables)
+- [Vercel Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables)
