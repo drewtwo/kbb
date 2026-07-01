@@ -6,6 +6,33 @@ This document explains how to set up environment variables for local development
 
 The application uses NextAuth for authentication with Yahoo OAuth provider. Proper environment configuration is critical for the application to function correctly.
 
+## Build-Time Environment Validation
+
+**NEW**: The application now validates required environment variables at build time. This ensures that all critical secrets are set before the build proceeds, preventing runtime failures.
+
+### How It Works
+
+1. During the build process (`next build`), the application checks for required environment variables
+2. If any required variables are missing or empty, the build fails with a clear error message
+3. This validation runs in production builds and CI/CD pipelines
+4. Local development builds also validate, but with warnings for missing recommended variables
+
+### Required Variables for Build-Time Validation
+
+The following variables are **REQUIRED** and must be set before building:
+
+- **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption
+
+### Recommended Variables
+
+The following variables are **RECOMMENDED** for proper functionality:
+
+- **NEXTAUTH_URL**: The URL where your application is deployed
+- **YAHOO_CLIENT_ID**: Yahoo OAuth Client ID
+- **YAHOO_CLIENT_SECRET**: Yahoo OAuth Client Secret
+- **YAHOO_AUTH_URL**: Yahoo OAuth authorization endpoint
+- **YAHOO_TOKEN_URL**: Yahoo OAuth token endpoint
+
 ## CRITICAL: NEXTAUTH_SECRET Requirement
 
 **NEXTAUTH_SECRET is REQUIRED for all deployments (local, preview, and production).**
@@ -18,7 +45,7 @@ The application uses NextAuth for authentication with Yahoo OAuth provider. Prop
   - Production/GitHub Actions: GitHub Secrets (Settings > Secrets and variables > Actions)
   - Vercel preview deployments: GitHub Secrets (will be passed to Vercel)
 
-If `NEXTAUTH_SECRET` is missing, the application will throw a clear error message on startup explaining how to fix it.
+If `NEXTAUTH_SECRET` is missing, the application will throw a clear error message during the build explaining how to fix it.
 
 ## NEXTAUTH_URL Behavior
 
@@ -68,7 +95,7 @@ openssl rand -base64 32
 
 Copy the output and paste it as the value for `NEXTAUTH_SECRET` in `.env.local`.
 
-**This step is REQUIRED** — the application will not start without this secret.
+**This step is REQUIRED** — the application will not start without this secret, and the build will fail if it's missing.
 
 ### 3. Configure Yahoo OAuth
 
@@ -117,16 +144,16 @@ Add the following secrets to your GitHub repository:
 2. Click "New repository secret"
 3. Add each of the following secrets:
 
-| Secret Name | Description | Required |
-|-------------|-------------|----------|
-| `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) | **YES** |
-| `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) | **YES** |
-| `YAHOO_AUTH_URL` | Yahoo OAuth authorization URL | Yes |
-| `YAHOO_TOKEN_URL` | Yahoo OAuth token URL | Yes |
-| `YAHOO_CLIENT_ID` | Yahoo OAuth Client ID | Yes |
-| `YAHOO_CLIENT_SECRET` | Yahoo OAuth Client Secret | Yes |
+| Secret Name | Description | Required | Build-Time Validation |
+|-------------|-------------|----------|----------------------|
+| `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) | **YES** | **YES** |
+| `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) | Yes | No |
+| `YAHOO_AUTH_URL` | Yahoo OAuth authorization URL | Yes | No |
+| `YAHOO_TOKEN_URL` | Yahoo OAuth token URL | Yes | No |
+| `YAHOO_CLIENT_ID` | Yahoo OAuth Client ID | Yes | No |
+| `YAHOO_CLIENT_SECRET` | Yahoo OAuth Client Secret | Yes | No |
 
-**CRITICAL**: `NEXTAUTH_SECRET` is **REQUIRED** for production deployments. Without it, authentication will fail with a 500 error.
+**CRITICAL**: `NEXTAUTH_SECRET` is **REQUIRED** for production deployments and is validated at build time. Without it, the build will fail with a clear error message.
 
 **Note**: `YAHOO_CALLBACK_URL` is **not** required as a GitHub Secret. It is automatically generated in the CI/CD workflow by appending `/api/auth/callback/yahoo` to `NEXTAUTH_URL`.
 
@@ -138,8 +165,9 @@ The `.github/workflows/setup-env.yml` workflow automatically:
 2. Triggers on pull requests to `main` and `develop` branches
 3. Creates `.env.local` from GitHub Secrets
 4. **Automatically generates `YAHOO_CALLBACK_URL`** by appending `/api/auth/callback/yahoo` to `NEXTAUTH_URL`
-5. Verifies the environment file was created successfully
-6. Runs linting, type checking, and build validation
+5. **Validates environment variables** before building (build will fail if required variables are missing)
+6. Verifies the environment file was created successfully
+7. Runs linting, type checking, and build validation
 
 The workflow ensures that sensitive credentials are never committed to the repository and that the Yahoo callback URL is always correctly derived from your deployment URL.
 
@@ -151,13 +179,16 @@ For Vercel preview deployments:
 2. If `NEXTAUTH_URL` is not set in GitHub Secrets, the NextAuth configuration will automatically use `https://{VERCEL_URL}`
 3. `YAHOO_CALLBACK_URL` will be automatically derived as `https://{VERCEL_URL}/api/auth/callback/yahoo`
 4. No additional configuration is needed for preview deployments
-5. **NEXTAUTH_SECRET must still be set in GitHub Secrets** — it will be passed to Vercel automatically
+5. **NEXTAUTH_SECRET must still be set in GitHub Secrets** — it will be passed to Vercel automatically and validated at build time
 
 ## Environment Variables Reference
 
-### Required Variables
+### Required Variables (Build-Time Validation)
 
-- **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption (**REQUIRED for all deployments**)
+- **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption (**REQUIRED for all deployments, validated at build time**)
+
+### Recommended Variables
+
 - **NEXTAUTH_URL**: The URL where your application is deployed (required for production, optional for local/preview)
 - **YAHOO_CLIENT_ID**: Yahoo OAuth Client ID
 - **YAHOO_CLIENT_SECRET**: Yahoo OAuth Client Secret
@@ -173,6 +204,21 @@ For Vercel preview deployments:
 - **VERCEL_URL**: Automatically provided by Vercel for preview deployments (used when NEXTAUTH_URL is not set)
 
 ## Troubleshooting
+
+### Build Fails with "Environment validation failed"
+
+**Symptom**: Build fails with error: "Environment validation failed. Please check the errors above..."
+
+**Causes**:
+1. `NEXTAUTH_SECRET` is not set in `.env.local` (local development)
+2. `NEXTAUTH_SECRET` is not set in GitHub Secrets (production/preview deployments)
+3. `NEXTAUTH_SECRET` is set to an empty string
+
+**Solution**:
+1. Generate a secret: `openssl rand -base64 32`
+2. For local development: Add it to `.env.local`
+3. For production: Add it as a GitHub Secret named `NEXTAUTH_SECRET`
+4. Retry the build
 
 ### Application Fails to Start with "NEXTAUTH_SECRET is not defined"
 
@@ -262,6 +308,7 @@ For Vercel preview deployments:
 6. **Use HTTPS in production**: Always use HTTPS URLs for production deployments
 7. **Verify OAuth redirect URIs**: Ensure redirect URIs in OAuth provider settings exactly match your deployment URLs
 8. **Protect GitHub Secrets**: Limit access to GitHub Secrets to authorized team members only
+9. **Monitor build failures**: Pay attention to build-time validation errors — they indicate missing or misconfigured secrets
 
 ## Additional Resources
 

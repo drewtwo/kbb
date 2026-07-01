@@ -57,6 +57,47 @@ jobs:
             exit 1
           fi
 
+      - name: Validate environment variables at build time
+        run: |
+          echo "🔍 Validating required environment variables..."
+          
+          # Check for NEXTAUTH_SECRET (required for build-time validation)
+          if [ -z "${{ secrets.NEXTAUTH_SECRET }}" ]; then
+            echo "❌ ERROR: NEXTAUTH_SECRET is not set in GitHub Secrets"
+            echo "This variable is REQUIRED for the build to succeed."
+            echo "Please add NEXTAUTH_SECRET to your GitHub Secrets:"
+            echo "  1. Go to Settings > Secrets and variables > Actions"
+            echo "  2. Click 'New repository secret'"
+            echo "  3. Name: NEXTAUTH_SECRET"
+            echo "  4. Value: Generate with 'openssl rand -base64 32'"
+            exit 1
+          fi
+          
+          echo "✅ NEXTAUTH_SECRET is set"
+          
+          # Check for recommended variables
+          if [ -z "${{ secrets.NEXTAUTH_URL }}" ]; then
+            echo "⚠️  WARNING: NEXTAUTH_URL is not set in GitHub Secrets"
+            echo "This is recommended for production deployments."
+          else
+            echo "✅ NEXTAUTH_URL is set"
+          fi
+          
+          if [ -z "${{ secrets.YAHOO_CLIENT_ID }}" ]; then
+            echo "⚠️  WARNING: YAHOO_CLIENT_ID is not set in GitHub Secrets"
+          else
+            echo "✅ YAHOO_CLIENT_ID is set"
+          fi
+          
+          if [ -z "${{ secrets.YAHOO_CLIENT_SECRET }}" ]; then
+            echo "⚠️  WARNING: YAHOO_CLIENT_SECRET is not set in GitHub Secrets"
+          else
+            echo "✅ YAHOO_CLIENT_SECRET is set"
+          fi
+          
+          echo ""
+          echo "✅ Build-time environment validation passed!"
+
       - name: Lint
         run: yarn lint
 
