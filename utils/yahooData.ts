@@ -3,14 +3,12 @@ import https from 'https';
 import zlib from 'zlib';
 import xml2js from 'xml2js';
 import { NextApiRequest } from 'next';
-import { Stats } from 'fs';
-import { json } from 'stream/consumers';
 
 const secret = process.env.SECRET;
 
 const parserOptions = { explicitArray: false };
 
-var parser = new xml2js.Parser(parserOptions);
+const parser = new xml2js.Parser(parserOptions);
 
 export const getTeams = async (req: NextApiRequest) => {
   return new Promise(async (resolve) => {
@@ -30,15 +28,15 @@ export const getTeams = async (req: NextApiRequest) => {
       };
 
       const request = https.request(options, (response) => {
-        var chunks: any[] = [];
+        const chunks: Buffer[] = [];
         response.on('data', (chunk) => {
           chunks.push(chunk);
         });
 
         response.on('end', function () {
-          var buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (err, result) {
+          const buffer = Buffer.concat(chunks);
+          zlib.gunzip(buffer, (_err, dezipped) => {
+            parser.parseString(dezipped.toString(), function (_err, result) {
               games = result.fantasy_content.users.user.games.game;
               resolve(games);
             });
@@ -48,7 +46,7 @@ export const getTeams = async (req: NextApiRequest) => {
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        let newError = { error: `Error on Get Request --> ${error}` };
+        const newError = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
@@ -61,7 +59,7 @@ export const getTeams = async (req: NextApiRequest) => {
 
 export const getLeagueTeams = async (
   req: NextApiRequest,
-  league_key: String
+  league_key: string
 ) => {
   return new Promise(async (resolve) => {
     try {
@@ -80,15 +78,15 @@ export const getLeagueTeams = async (
       };
 
       const request = https.request(options, (response) => {
-        var chunks: any[] = [];
+        const chunks: Buffer[] = [];
         response.on('data', (chunk) => {
           chunks.push(chunk);
         });
 
         response.on('end', function () {
-          var buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (err, result) {
+          const buffer = Buffer.concat(chunks);
+          zlib.gunzip(buffer, (_err, dezipped) => {
+            parser.parseString(dezipped.toString(), function (_err, result) {
               league = result.fantasy_content.league;
               resolve(league);
             });
@@ -98,7 +96,7 @@ export const getLeagueTeams = async (
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        let newError = { error: `Error on Get Request --> ${error}` };
+        const newError = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
@@ -111,7 +109,7 @@ export const getLeagueTeams = async (
 
 export const getLeagueSettings = async (
   req: NextApiRequest,
-  league_key: String
+  league_key: string
 ) => {
   return new Promise(async (resolve) => {
     try {
@@ -130,15 +128,15 @@ export const getLeagueSettings = async (
       };
 
       const request = https.request(options, (response) => {
-        var chunks: any[] = [];
+        const chunks: Buffer[] = [];
         response.on('data', (chunk) => {
           chunks.push(chunk);
         });
 
         response.on('end', function () {
-          var buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (err, result) {
+          const buffer = Buffer.concat(chunks);
+          zlib.gunzip(buffer, (_err, dezipped) => {
+            parser.parseString(dezipped.toString(), function (_err, result) {
               league = result.fantasy_content.league.settings;
               resolve(league);
             });
@@ -148,7 +146,7 @@ export const getLeagueSettings = async (
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        let newError = { error: `Error on Get Request --> ${error}` };
+        const newError = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
@@ -159,12 +157,12 @@ export const getLeagueSettings = async (
   });
 };
 
-export const getWeeklyStats = async (req: NextApiRequest, team_key: String) => {
+export const getWeeklyStats = async (req: NextApiRequest, team_key: string) => {
   let stats = await getWeekStats(req, team_key, '0');
-  let week = stats.week;
-  let result = [stats];
+  const week = stats.week;
+  const result = [stats];
   for (let index = week - 1; index > 0; index--) {
-    stats = await getWeekStats(req, team_key, index);
+    stats = await getWeekStats(req, team_key, String(index));
     result.push(stats);
   }
   return result;
@@ -172,8 +170,8 @@ export const getWeeklyStats = async (req: NextApiRequest, team_key: String) => {
 
 export const getWeekStats = async (
   req: NextApiRequest,
-  team_key: String,
-  week: String
+  team_key: string,
+  week: string
 ) => {
   return new Promise(async (resolve) => {
     try {
@@ -192,15 +190,15 @@ export const getWeekStats = async (
       };
 
       const request = https.request(options, (response) => {
-        var chunks: any[] = [];
+        const chunks: Buffer[] = [];
         response.on('data', (chunk) => {
           chunks.push(chunk);
         });
 
         response.on('end', function () {
-          var buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (err, result) {
+          const buffer = Buffer.concat(chunks);
+          zlib.gunzip(buffer, (_err, dezipped) => {
+            parser.parseString(dezipped.toString(), function (_err, result) {
               stats = result.fantasy_content.team.team_stats;
               resolve(stats);
             });
@@ -210,7 +208,7 @@ export const getWeekStats = async (
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        let newError = { error: `Error on Get Request --> ${error}` };
+        const newError = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 

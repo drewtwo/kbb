@@ -2,10 +2,22 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import leagueStyles from '../../../components/leagues.module.css';
 
-const fetcher = (url: String) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+interface Team {
+  name: string;
+  team_id: string;
+}
+
+interface LeagueData {
+  teams: {
+    teams: {
+      team: Team[];
+    };
+  };
+}
 
 const League = () => {
   const router = useRouter();
@@ -19,10 +31,10 @@ const League = () => {
     <Layout>
       <p>League ID: {gameid}</p>
       <ul>
-        {data.teams.teams.team.map((team) => (
+        {data.teams.teams.team.map((team: Team) => (
           <li key={team.name}>
             <Link href={`${gameid}/team/${team.team_id}`}>
-              <a>{`Team Name: ${JSON.stringify(team.name)}`}</a>
+              {`Team Name: ${JSON.stringify(team.name)}`}
             </Link>
           </li>
         ))}

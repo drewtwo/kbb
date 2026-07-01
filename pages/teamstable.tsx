@@ -1,14 +1,28 @@
 import useSwr from 'swr';
 import Link from 'next/link';
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../components/leagues.module.css';
 import Layout from '../components/layout';
+
 const LeagueCard = dynamic(() => import('../components/leaguecard'), {
   ssr: false,
 });
 
-const fetcher = (url: String) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+interface Team {
+  team_key: string;
+  name: string;
+}
+
+interface Game {
+  name: string;
+  season: string;
+  teams: {
+    team: Team | Team[];
+  };
+}
 
 export default function Index() {
   const { data, error } = useSwr('/api/teams', fetcher);
@@ -18,9 +32,9 @@ export default function Index() {
   return (
     <Layout>
       <div className={leagueStyles.grid}>
-        {data.map((game) =>
+        {data.map((game: Game) =>
           Array.isArray(game.teams.team) ? (
-            game.teams.team.map((inner_team) => (
+            game.teams.team.map((inner_team: Team) => (
               <LeagueCard
                 key={inner_team.team_key}
                 game={game}

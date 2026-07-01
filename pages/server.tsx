@@ -8,8 +8,7 @@ export default function Page() {
   // populated on render without needing to go through a loading stage.
   // This is possible because of the shared context configured in `_app.js` that
   // is used by `useSession()`.
-  const { data: session, status } = useSession()
-  const loading = status === 'loading'
+  const { data: session } = useSession()
 
   return (
     <Layout>

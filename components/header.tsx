@@ -68,7 +68,7 @@ export default function Header() {
           {session && (
             <li className={styles.navItem}>
               <Link href="/teamstable">
-                <a>Teams</a>
+                Teams
               </Link>
             </li>
           )}

@@ -1,9 +1,30 @@
 import Link from 'next/link';
 import Image from 'next/image';
 
-export function generateAvatar(team) {
+interface Team {
+  team_logo?: string;
+  team_logos?: {
+    team_logo: {
+      url: string;
+    };
+  };
+  team_key: string;
+  name: string;
+}
+
+interface Game {
+  name: string;
+  season: string;
+}
+
+interface LeagueCardProps {
+  game: Game;
+  team: Team;
+}
+
+export function generateAvatar(team: Team): string {
   if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
-    return team.team_logo;
+    return team.team_logo as string;
   } else if (
     team.team_logos &&
     (typeof team.team_logos.team_logo.url === 'string' ||
@@ -15,7 +36,7 @@ export function generateAvatar(team) {
   }
 }
 
-const LeagueCard = ({ game, team }) => (
+const LeagueCard = ({ game, team }: LeagueCardProps) => (
   <div>
     <Link href={`/game/${team.team_key.split('.t')[0]}`}>
       <div>
