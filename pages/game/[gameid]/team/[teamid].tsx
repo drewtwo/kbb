@@ -1,22 +1,53 @@
 import { useRouter } from 'next/router';
 import Layout from '../../../../components/layout';
 import useSwr from 'swr';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../../../../components/leagues.module.css';
+
 const StatCard = dynamic(() => import('../../../../components/statcard'), {
   ssr: false,
 });
 
-const fetcher = (url: String) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function generateChartData(stat_id, weekly_stats_data) {
-  var dataset = [];
+interface Stat {
+  stat_id: string;
+  value: string;
+}
+
+interface WeekStats {
+  stats: {
+    stat: Stat[];
+  };
+}
+
+interface WeeklyStatsData {
+  stats_by_week: WeekStats[];
+}
+
+interface StatCategory {
+  stat_id: string;
+  name: string;
+  display_name: string;
+}
+
+interface SettingsData {
+  settings: {
+    stat_categories: {
+      stats: {
+        stat: StatCategory[];
+      };
+    };
+  };
+}
+
+export function generateChartData(stat_id: string, weekly_stats_data: WeeklyStatsData): (string | number)[] {
+  const dataset: (string | number)[] = [];
   weekly_stats_data.stats_by_week.forEach((stats) => {
     stats.stats.stat.forEach((stat) => {
       if (stat.stat_id === stat_id) {
-        if (stat_id == 60) {
-          var value = stat.value.split('/')[0];
+        if (stat_id === '60') {
+          const value = stat.value.split('/')[0];
           dataset.push(value);
         } else {
           dataset.push(stat.value);
@@ -28,15 +59,15 @@ export function generateChartData(stat_id, weekly_stats_data) {
   return dataset.reverse();
 }
 
-export function generateDelta(stat_id, weekly_stats_data) {
-  var this_week_value = 0;
-  var last_week_value = 0;
-  var this_week = weekly_stats_data.stats_by_week[0];
-  var last_week = weekly_stats_data.stats_by_week[1];
+export function generateDelta(stat_id: string, weekly_stats_data: WeeklyStatsData): number | string {
+  let this_week_value: string | number = 0;
+  let last_week_value: string | number = 0;
+  const this_week = weekly_stats_data.stats_by_week[0];
+  const last_week = weekly_stats_data.stats_by_week[1];
   this_week.stats.stat.forEach((stat) => {
     if (stat.stat_id === stat_id) {
-      if (stat_id == 60) {
-        var value = stat.value.split('/')[0];
+      if (stat_id === '60') {
+        const value = stat.value.split('/')[0];
         this_week_value = value;
       } else {
         this_week_value = stat.value;
@@ -45,22 +76,21 @@ export function generateDelta(stat_id, weekly_stats_data) {
   });
   last_week.stats.stat.forEach((stat) => {
     if (stat.stat_id === stat_id) {
-      if (stat_id == 60) {
-        var value = stat.value.split('/')[0];
+      if (stat_id === '60') {
+        const value = stat.value.split('/')[0];
         last_week_value = value;
       } else {
         last_week_value = stat.value;
       }
     }
   });
-  return (this_week_value - last_week_value) % 1 === 0
-    ? this_week_value - last_week_value
-    : (this_week_value - last_week_value).toFixed(3);
+  const delta = Number(this_week_value) - Number(last_week_value);
+  return delta % 1 === 0 ? delta : delta.toFixed(3);
 }
 
-export function generateCurrentValue(stat_id, weekly_stats_data) {
-  var this_week = weekly_stats_data.stats_by_week[0];
-  var value = '';
+export function generateCurrentValue(stat_id: string, weekly_stats_data: WeeklyStatsData): string {
+  const this_week = weekly_stats_data.stats_by_week[0];
+  let value = '';
   this_week.stats.stat.forEach((stat) => {
     if (stat.stat_id === stat_id) {
       value = stat.value;
@@ -87,14 +117,14 @@ const Team = () => {
     <Layout>
       <p>League Stats</p>
       <div className={leagueStyles.grid2}>
-        {stats_response.data.settings.stat_categories.stats.stat.map((stat) => (
+        {stats_response.data.settings.stat_categories.stats.stat.map((stat: StatCategory) => (
           <div key={stat.name}>
             <StatCard
               name={stat.name}
               shortName={stat.display_name}
               delta={generateDelta(stat.stat_id, weekly_stat_response.data)}
               deltaDirection={
-                generateDelta(stat.stat_id, weekly_stat_response.data) > 0
+                Number(generateDelta(stat.stat_id, weekly_stat_response.data)) > 0
                   ? 1
                   : -1
               }

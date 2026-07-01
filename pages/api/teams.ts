@@ -1,8 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getToken } from 'next-auth/jwt';
-import https from 'https';
-import zlib from 'zlib';
-import { parseString } from 'xml2js';
 import { getTeams } from '../../utils/yahooData';
 
 type ResponseData = {
