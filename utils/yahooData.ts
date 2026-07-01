@@ -3,6 +3,7 @@ import https from 'https';
 import zlib from 'zlib';
 import xml2js from 'xml2js';
 import { NextApiRequest } from 'next';
+import { ErrorResponse, FantasyContent, WeekStats } from '../types/yahooFantasy';
 
 const secret = process.env.SECRET;
 
@@ -10,14 +11,10 @@ const parserOptions = { explicitArray: false };
 
 const parser = new xml2js.Parser(parserOptions);
 
-interface ErrorResponse {
-  error: string;
-}
-
-export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
+export const getTeams = async (req: NextApiRequest): Promise<FantasyContent | ErrorResponse> => {
   return new Promise(async (resolve) => {
     try {
-      let games: unknown = {};
+      let games: FantasyContent | ErrorResponse = {};
       const token = await getToken({ req, secret });
       const options = {
         hostname: 'fantasysports.yahooapis.com',
@@ -41,7 +38,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              games = (result as Record<string, unknown>).fantasy_content;
+              games = (result as Record<string, FantasyContent>).fantasy_content;
               resolve(games);
             });
           });
@@ -64,10 +61,10 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
 export const getLeagueTeams = async (
   req: NextApiRequest,
   league_key: string | string[]
-): Promise<unknown> => {
+): Promise<FantasyContent | ErrorResponse> => {
   return new Promise(async (resolve) => {
     try {
-      let league: unknown = {};
+      let league: FantasyContent | ErrorResponse = {};
       const token = await getToken({ req, secret });
       const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
       const options = {
@@ -92,7 +89,7 @@ export const getLeagueTeams = async (
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              league = (result as Record<string, unknown>).fantasy_content;
+              league = (result as Record<string, FantasyContent>).fantasy_content;
               resolve(league);
             });
           });
@@ -115,10 +112,10 @@ export const getLeagueTeams = async (
 export const getLeagueSettings = async (
   req: NextApiRequest,
   league_key: string | string[]
-): Promise<unknown> => {
+): Promise<FantasyContent | ErrorResponse> => {
   return new Promise(async (resolve) => {
     try {
-      let league: unknown = {};
+      let league: FantasyContent | ErrorResponse = {};
       const token = await getToken({ req, secret });
       const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
       const options = {
@@ -143,7 +140,7 @@ export const getLeagueSettings = async (
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              league = (result as Record<string, unknown>).fantasy_content;
+              league = (result as Record<string, FantasyContent>).fantasy_content;
               resolve(league);
             });
           });
@@ -163,14 +160,14 @@ export const getLeagueSettings = async (
   });
 };
 
-export const getWeeklyStats = async (req: NextApiRequest, team_key: string | string[]): Promise<unknown[]> => {
+export const getWeeklyStats = async (req: NextApiRequest, team_key: string | string[]): Promise<(WeekStats | ErrorResponse)[]> => {
   const teamKeyStr = Array.isArray(team_key) ? team_key[0] : team_key;
   let stats = await getWeekStats(req, teamKeyStr, '0');
   const week = (stats as Record<string, unknown>).week as number;
-  const result: unknown[] = [stats];
+  const result: (WeekStats | ErrorResponse)[] = [stats as WeekStats];
   for (let index = week - 1; index > 0; index--) {
     stats = await getWeekStats(req, teamKeyStr, String(index));
-    result.push(stats);
+    result.push(stats as WeekStats);
   }
   return result;
 };
@@ -179,10 +176,10 @@ export const getWeekStats = async (
   req: NextApiRequest,
   team_key: string,
   week: string
-): Promise<unknown> => {
+): Promise<WeekStats | ErrorResponse> => {
   return new Promise(async (resolve) => {
     try {
-      let stats: unknown = {};
+      let stats: WeekStats | ErrorResponse = {};
       const token = await getToken({ req, secret });
       const options = {
         hostname: 'fantasysports.yahooapis.com',
@@ -206,7 +203,7 @@ export const getWeekStats = async (
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              stats = (result as Record<string, unknown>).fantasy_content;
+              stats = (result as Record<string, WeekStats>).fantasy_content;
               resolve(stats);
             });
           });

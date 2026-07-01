@@ -3,21 +3,9 @@ import Layout from '../../../components/layout';
 import useSwr from 'swr';
 import Link from 'next/link';
 import leagueStyles from '../../../components/leagues.module.css';
+import { FantasyContent, Team, TeamsContainer, ErrorResponse } from '../../../types/yahooFantasy';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-interface Team {
-  name: string;
-  team_id: string;
-}
-
-interface LeagueData {
-  teams: {
-    teams: {
-      team: Team[];
-    };
-  };
-}
 
 const League = () => {
   const router = useRouter();
@@ -28,14 +16,36 @@ const League = () => {
 
   if (error) return <div>Failed to load teams</div>;
   if (!data) return <div>Loading...</div>;
+
+  // Type guard to check if data is an error response
+  if ('error' in data && typeof (data as any).error === 'string') {
+    return <div>Error: {(data as any).error}</div>;
+  }
+
+  // Type guard to check if data has teams
+  const responseData = data as any;
+  if (!responseData.teams) {
+    return <div>No teams data available</div>;
+  }
+
+  const teamsData = responseData.teams as FantasyContent;
+  if (!teamsData.teams) {
+    return <div>No teams available</div>;
+  }
+
+  const teamsContainer = teamsData.teams as TeamsContainer;
+  const teamArray = Array.isArray(teamsContainer.team)
+    ? teamsContainer.team
+    : [teamsContainer.team];
+
   return (
     <Layout>
       <p>League ID: {gameid}</p>
       <ul>
-        {data.teams.teams.team.map((team: Team) => (
-          <li key={team.name}>
+        {teamArray.map((team: Team) => (
+          <li key={team.team_id || team.name}>
             <Link href={`${gameid}/team/${team.team_id}`}>
-              {`Team Name: ${JSON.stringify(team.name)}`}
+              {`Team Name: ${team.name}`}
             </Link>
           </li>
         ))}

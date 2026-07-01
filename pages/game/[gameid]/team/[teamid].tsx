@@ -3,6 +3,7 @@ import Layout from '../../../../components/layout';
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../../../../components/leagues.module.css';
+import { WeekStats, ErrorResponse, StatsContainer, StatCategory } from '../../../../types/yahooFantasy';
 
 const StatCard = dynamic(() => import('../../../../components/statcard'), {
   ssr: false,
@@ -15,20 +16,8 @@ interface Stat {
   value: string;
 }
 
-interface WeekStats {
-  stats: {
-    stat: Stat[];
-  };
-}
-
 interface WeeklyStatsData {
   stats_by_week: WeekStats[];
-}
-
-interface StatCategory {
-  stat_id: string;
-  name: string;
-  display_name: string;
 }
 
 interface SettingsData {
@@ -44,7 +33,11 @@ interface SettingsData {
 export function generateChartData(stat_id: string, weekly_stats_data: WeeklyStatsData): (string | number)[] {
   const dataset: (string | number)[] = [];
   weekly_stats_data.stats_by_week.forEach((stats) => {
-    stats.stats.stat.forEach((stat) => {
+    if (!stats.stats) return;
+    const statsArray = Array.isArray(stats.stats.stat)
+      ? stats.stats.stat
+      : [stats.stats.stat];
+    statsArray.forEach((stat: Stat) => {
       if (stat.stat_id === stat_id) {
         if (stat_id === '60') {
           const value = stat.value.split('/')[0];
@@ -64,7 +57,23 @@ export function generateDelta(stat_id: string, weekly_stats_data: WeeklyStatsDat
   let last_week_value: string | number = 0;
   const this_week = weekly_stats_data.stats_by_week[0];
   const last_week = weekly_stats_data.stats_by_week[1];
-  this_week.stats.stat.forEach((stat) => {
+
+  if (!this_week || !this_week.stats) {
+    return 0;
+  }
+
+  if (!last_week || !last_week.stats) {
+    return 0;
+  }
+
+  const thisWeekStatsArray = Array.isArray(this_week.stats.stat)
+    ? this_week.stats.stat
+    : [this_week.stats.stat];
+  const lastWeekStatsArray = Array.isArray(last_week.stats.stat)
+    ? last_week.stats.stat
+    : [last_week.stats.stat];
+
+  thisWeekStatsArray.forEach((stat: Stat) => {
     if (stat.stat_id === stat_id) {
       if (stat_id === '60') {
         const value = stat.value.split('/')[0];
@@ -74,7 +83,8 @@ export function generateDelta(stat_id: string, weekly_stats_data: WeeklyStatsDat
       }
     }
   });
-  last_week.stats.stat.forEach((stat) => {
+
+  lastWeekStatsArray.forEach((stat: Stat) => {
     if (stat.stat_id === stat_id) {
       if (stat_id === '60') {
         const value = stat.value.split('/')[0];
@@ -84,6 +94,7 @@ export function generateDelta(stat_id: string, weekly_stats_data: WeeklyStatsDat
       }
     }
   });
+
   const delta = Number(this_week_value) - Number(last_week_value);
   return delta % 1 === 0 ? delta : delta.toFixed(3);
 }
@@ -91,7 +102,16 @@ export function generateDelta(stat_id: string, weekly_stats_data: WeeklyStatsDat
 export function generateCurrentValue(stat_id: string, weekly_stats_data: WeeklyStatsData): string {
   const this_week = weekly_stats_data.stats_by_week[0];
   let value = '';
-  this_week.stats.stat.forEach((stat) => {
+
+  if (!this_week || !this_week.stats) {
+    return value;
+  }
+
+  const statsArray = Array.isArray(this_week.stats.stat)
+    ? this_week.stats.stat
+    : [this_week.stats.stat];
+
+  statsArray.forEach((stat: Stat) => {
     if (stat.stat_id === stat_id) {
       value = stat.value;
       console.log(stat.value);
@@ -115,28 +135,57 @@ const Team = () => {
   if (!stats_response.data || !weekly_stat_response.data)
     return <div>Loading...</div>;
 
+  // Type guards for stats_response
+  if ('error' in stats_response.data && typeof (stats_response.data as any).error === 'string') {
+    return <div>Error loading league info: {(stats_response.data as any).error}</div>;
+  }
+
+  // Type guards for weekly_stat_response
+  if ('error' in weekly_stat_response.data && typeof (weekly_stat_response.data as any).error === 'string') {
+    return <div>Error loading team stats: {(weekly_stat_response.data as any).error}</div>;
+  }
+
+  const settingsData = stats_response.data as any;
+  if (!settingsData.settings || !settingsData.settings.stat_categories) {
+    return <div>No settings data available</div>;
+  }
+
+  const statCategoriesData = settingsData.settings.stat_categories as any;
+  if (!statCategoriesData.stats) {
+    return <div>No stat categories available</div>;
+  }
+
+  const statsArray = Array.isArray(statCategoriesData.stats.stat)
+    ? statCategoriesData.stats.stat
+    : [statCategoriesData.stats.stat];
+
+  const weeklyStatsData = weekly_stat_response.data as WeeklyStatsData;
+  if (!weeklyStatsData.stats_by_week || weeklyStatsData.stats_by_week.length === 0) {
+    return <div>No weekly stats available</div>;
+  }
+
   return (
     <Layout>
       <p>League Stats</p>
       <div className={leagueStyles.grid2}>
-        {stats_response.data.settings.stat_categories.stats.stat.map((stat: StatCategory) => (
-          <div key={stat.name}>
+        {statsArray.map((stat: StatCategory) => (
+          <div key={stat.stat_id}>
             <StatCard
               name={stat.name}
               shortName={stat.display_name}
-              delta={generateDelta(stat.stat_id, weekly_stat_response.data)}
+              delta={generateDelta(stat.stat_id, weeklyStatsData)}
               deltaDirection={
-                Number(generateDelta(stat.stat_id, weekly_stat_response.data)) > 0
+                Number(generateDelta(stat.stat_id, weeklyStatsData)) > 0
                   ? 1
                   : -1
               }
               currentValue={generateCurrentValue(
                 stat.stat_id,
-                weekly_stat_response.data
+                weeklyStatsData
               )}
               chartData={generateChartData(
                 stat.stat_id,
-                weekly_stat_response.data
+                weeklyStatsData
               )}
             ></StatCard>
           </div>

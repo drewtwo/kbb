@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getLeagueTeams, getLeagueSettings } from '../../../utils/yahooData';
+import { FantasyContent, ErrorResponse } from '../../../types/yahooFantasy';
 
 type ResponseData = {
-  name?: string;
+  teams?: FantasyContent;
+  settings?: FantasyContent;
   error?: string;
-  teams?: unknown;
-  settings?: unknown;
 };
 
 export default async function teams(
@@ -17,8 +17,7 @@ export default async function teams(
     if (id !== undefined && id !== null) {
       const league_teams = await getLeagueTeams(req, id);
       const league_settings = await getLeagueSettings(req, id);
-      // console.log(league_info);
-      res.status(200).json({ teams: league_teams, settings: league_settings });
+      res.status(200).json({ teams: league_teams as FantasyContent, settings: league_settings as FantasyContent });
     } else {
       res.status(500).json({ error: 'no league id provided' });
     }

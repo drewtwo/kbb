@@ -1,10 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getWeeklyStats } from '../../../utils/yahooData';
+import { WeekStats, ErrorResponse } from '../../../types/yahooFantasy';
 
 type ResponseData = {
-  name?: string;
+  stats_by_week?: (WeekStats | ErrorResponse)[];
   error?: string;
-  stats_by_week?: unknown[];
 };
 
 export default async function weekStats(
