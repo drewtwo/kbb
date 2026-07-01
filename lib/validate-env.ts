@@ -1,29 +1,22 @@
 /**
- * Environment Validation Module
+ * Environment Variable Validation Module
  * 
- * This module validates that required environment variables are set at build time.
- * It runs during the Next.js build process to catch configuration issues early.
+ * This module validates that all required environment variables are set
+ * at build time. It provides clear error messages listing which secrets
+ * are missing.
  */
 
-interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
 /**
- * Define required environment variables for build-time validation
- * These variables MUST be set for the application to build and run correctly
+ * List of required environment variables that must be set for the build to succeed
  */
 const REQUIRED_ENV_VARS = [
   'NEXTAUTH_SECRET',
 ];
 
 /**
- * Define optional environment variables that are recommended but not strictly required
+ * List of recommended environment variables for full functionality
  */
 const RECOMMENDED_ENV_VARS = [
-  'NEXTAUTH_URL',
   'YAHOO_CLIENT_ID',
   'YAHOO_CLIENT_SECRET',
   'YAHOO_AUTH_URL',
@@ -31,95 +24,81 @@ const RECOMMENDED_ENV_VARS = [
 ];
 
 /**
- * Validate that all required environment variables are set
- * @returns {ValidationResult} Object containing validation status and any errors/warnings
+ * Validates that all required environment variables are set and non-empty
+ * Throws an error with a clear message if any are missing
  */
-export function validateEnvironment(): ValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
+export function validateEnvironmentOrThrow(): void {
+  const missingRequired: string[] = [];
+  const missingRecommended: string[] = [];
 
   // Check required variables
-  for (const envVar of REQUIRED_ENV_VARS) {
-    const value = process.env[envVar];
-    
-    if (!value) {
-      errors.push(
-        `Missing required environment variable: ${envVar}\n` +
-        `  This variable is critical for the application to function.\n` +
-        `  Please set it in your .env.local file (local development) or GitHub Secrets (production).`
-      );
-    } else if (value.trim() === '') {
-      errors.push(
-        `Environment variable ${envVar} is set but empty.\n` +
-        `  Please provide a non-empty value.`
-      );
+  for (const varName of REQUIRED_ENV_VARS) {
+    const value = process.env[varName];
+    if (!value || value.trim() === '') {
+      missingRequired.push(varName);
     }
   }
 
   // Check recommended variables
-  for (const envVar of RECOMMENDED_ENV_VARS) {
-    const value = process.env[envVar];
-    
-    if (!value) {
-      warnings.push(
-        `Recommended environment variable not set: ${envVar}\n` +
-        `  While not strictly required, this variable is recommended for proper functionality.`
-      );
+  for (const varName of RECOMMENDED_ENV_VARS) {
+    const value = process.env[varName];
+    if (!value || value.trim() === '') {
+      missingRecommended.push(varName);
     }
   }
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
+  // If any required variables are missing, throw an error
+  if (missingRequired.length > 0) {
+    const errorMessage = buildErrorMessage(missingRequired, missingRecommended);
+    throw new Error(errorMessage);
+  }
+
+  // Log warnings for missing recommended variables (but don't fail)
+  if (missingRecommended.length > 0) {
+    const warningMessage = buildWarningMessage(missingRecommended);
+    console.warn(warningMessage);
+  }
 }
 
 /**
- * Validate environment and throw an error if validation fails
- * This function is called during the build process
- * @throws {Error} If required environment variables are missing
+ * Builds a detailed error message for missing required variables
  */
-export function validateEnvironmentOrThrow(): void {
-  const result = validateEnvironment();
-
-  // Log warnings
-  if (result.warnings.length > 0) {
-    console.warn('\n⚠️  Environment Validation Warnings:\n');
-    result.warnings.forEach((warning, index) => {
-      console.warn(`${index + 1}. ${warning}\n`);
-    });
+function buildErrorMessage(missing: string[], missingRecommended: string[]): string {
+  let message = '\n❌ Environment validation failed!\n\n';
+  message += 'The following REQUIRED environment variables are missing or empty:\n';
+  
+  for (const varName of missing) {
+    message += `  • ${varName}\n`;
   }
 
-  // Throw error if validation failed
-  if (!result.isValid) {
-    console.error('\n❌ Environment Validation Failed:\n');
-    result.errors.forEach((error, index) => {
-      console.error(`${index + 1}. ${error}\n`);
-    });
-    
-    throw new Error(
-      'Environment validation failed. Please check the errors above and ensure all required ' +
-      'environment variables are properly configured.'
-    );
+  message += '\n📋 How to fix:\n';
+  message += '  1. Generate a secret: openssl rand -base64 32\n';
+  message += '  2. For local development: Add to .env.local\n';
+  message += '  3. For production: Add as GitHub Secret\n';
+  message += '\n📚 For more information, see docs/ENVIRONMENT_SETUP.md\n';
+
+  if (missingRecommended.length > 0) {
+    message += '\n⚠️  The following RECOMMENDED variables are also missing:\n';
+    for (const varName of missingRecommended) {
+      message += `  • ${varName}\n`;
+    }
   }
 
-  console.log('✅ Environment validation passed!\n');
+  return message;
 }
 
 /**
- * Get a summary of the validation status
- * @returns {string} Human-readable summary of validation status
+ * Builds a warning message for missing recommended variables
  */
-export function getValidationSummary(): string {
-  const result = validateEnvironment();
+function buildWarningMessage(missing: string[]): string {
+  let message = '\n⚠️  Warning: The following RECOMMENDED environment variables are missing:\n';
   
-  let summary = 'Environment Validation Summary:\n';
-  summary += `  Required variables: ${REQUIRED_ENV_VARS.length}\n`;
-  summary += `  Recommended variables: ${RECOMMENDED_ENV_VARS.length}\n`;
-  summary += `  Errors: ${result.errors.length}\n`;
-  summary += `  Warnings: ${result.warnings.length}\n`;
-  summary += `  Status: ${result.isValid ? '✅ VALID' : '❌ INVALID'}\n`;
-  
-  return summary;
+  for (const varName of missing) {
+    message += `  • ${varName}\n`;
+  }
+
+  message += '\nThe application may not function correctly without these variables.\n';
+  message += 'See docs/ENVIRONMENT_SETUP.md for more information.\n';
+
+  return message;
 }

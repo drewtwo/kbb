@@ -2,6 +2,7 @@
 
 // Import environment validation module
 // This will validate required environment variables at build time
+// eslint-disable-next-line global-require
 const { validateEnvironmentOrThrow } = require('./lib/validate-env.ts');
 
 // Validate environment variables during build
