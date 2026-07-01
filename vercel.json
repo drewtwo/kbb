@@ -1,5 +1,4 @@
 {
   "framework": "nextjs",
-  "buildCommand": "yarn build",
-  "nodeVersion": "24.15.0"
+  "buildCommand": "yarn build"
 }
