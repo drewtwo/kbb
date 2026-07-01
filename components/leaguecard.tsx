@@ -23,12 +23,11 @@ interface LeagueCardProps {
 }
 
 export function generateAvatar(team: Team): string {
-  if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
+  if (typeof team.team_logo === 'string') {
     return team.team_logo as string;
   } else if (
     team.team_logos &&
-    (typeof team.team_logos.team_logo.url === 'string' ||
-      team.team_logos.team_logo.url instanceof String)
+    typeof team.team_logos.team_logo.url === 'string'
   ) {
     return team.team_logos.team_logo.url;
   } else {

@@ -40,7 +40,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         response.on('end', function () {
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
+            parser.parseString((dezipped as Uint8Array).toString(), function (_err, result) {
               games = (result as Record<string, unknown>).fantasy_content;
               resolve(games);
             });
@@ -91,7 +91,7 @@ export const getLeagueTeams = async (
         response.on('end', function () {
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
+            parser.parseString((dezipped as Uint8Array).toString(), function (_err, result) {
               league = (result as Record<string, unknown>).fantasy_content;
               resolve(league);
             });
@@ -142,7 +142,7 @@ export const getLeagueSettings = async (
         response.on('end', function () {
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
+            parser.parseString((dezipped as Uint8Array).toString(), function (_err, result) {
               league = (result as Record<string, unknown>).fantasy_content;
               resolve(league);
             });
@@ -205,7 +205,7 @@ export const getWeekStats = async (
         response.on('end', function () {
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
+            parser.parseString((dezipped as Uint8Array).toString(), function (_err, result) {
               stats = (result as Record<string, unknown>).fantasy_content;
               resolve(stats);
             });
