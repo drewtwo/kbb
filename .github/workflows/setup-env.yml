@@ -31,8 +31,6 @@ jobs:
           cat > .env.local << EOF
           NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
-          GITHUB_ID=${{ secrets.GITHUB_ID }}
-          GITHUB_SECRET=${{ secrets.GITHUB_SECRET }}
           YAHOO_AUTH_URL=${{ secrets.YAHOO_AUTH_URL }}
           YAHOO_TOKEN_URL=${{ secrets.YAHOO_TOKEN_URL }}
           YAHOO_CLIENT_ID=${{ secrets.YAHOO_CLIENT_ID }}

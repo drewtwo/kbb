@@ -4,7 +4,7 @@ This document explains how to set up environment variables for local development
 
 ## Overview
 
-The application uses NextAuth for authentication with support for GitHub and Yahoo OAuth providers. Proper environment configuration is critical for the application to function correctly.
+The application uses NextAuth for authentication with Yahoo OAuth provider. Proper environment configuration is critical for the application to function correctly.
 
 ## NEXTAUTH_URL Behavior
 
@@ -44,22 +44,7 @@ openssl rand -base64 32
 
 Copy the output and paste it as the value for `NEXTAUTH_SECRET` in `.env.local`.
 
-### 3. Configure GitHub OAuth
-
-1. Go to [GitHub Settings > Developer settings > OAuth Apps](https://github.com/settings/developers)
-2. Click "New OAuth App"
-3. Fill in the application details:
-   - **Application name**: KBB (or your preferred name)
-   - **Homepage URL**: `http://localhost:3000`
-   - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github`
-4. Copy the **Client ID** and **Client Secret**
-5. Add these to `.env.local`:
-   ```
-   GITHUB_ID=your_client_id
-   GITHUB_SECRET=your_client_secret
-   ```
-
-### 4. Configure Yahoo OAuth
+### 3. Configure Yahoo OAuth
 
 1. Go to [Yahoo Developer Network](https://developer.yahoo.com/apps)
 2. Create a new application
@@ -74,7 +59,7 @@ Copy the output and paste it as the value for `NEXTAUTH_SECRET` in `.env.local`.
    YAHOO_TOKEN_URL=https://api.login.yahoo.com/oauth2/get_token
    ```
 
-### 5. Set NEXTAUTH_URL (Optional for Local Development)
+### 4. Set NEXTAUTH_URL (Optional for Local Development)
 
 For local development, you can leave `NEXTAUTH_URL` unset (it will default to `http://localhost:3000`) or explicitly set it:
 ```
@@ -86,7 +71,7 @@ If you're running the development server on a different port, set it accordingly
 NEXTAUTH_URL=http://localhost:3001
 ```
 
-### 6. Start the Development Server
+### 5. Start the Development Server
 
 ```bash
 npm run dev
@@ -110,8 +95,6 @@ Add the following secrets to your GitHub repository:
 |-------------|-------------|----------|
 | `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) | Yes |
 | `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) | Yes |
-| `GITHUB_ID` | GitHub OAuth App Client ID | Yes |
-| `GITHUB_SECRET` | GitHub OAuth App Client Secret | Yes |
 | `YAHOO_AUTH_URL` | Yahoo OAuth authorization URL | Yes |
 | `YAHOO_TOKEN_URL` | Yahoo OAuth token URL | Yes |
 | `YAHOO_CLIENT_ID` | Yahoo OAuth Client ID | Yes |
@@ -143,8 +126,6 @@ For Vercel preview deployments:
 
 - **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption
 - **NEXTAUTH_URL**: The URL where your application is deployed (required for production, optional for local/preview)
-- **GITHUB_ID**: GitHub OAuth App Client ID
-- **GITHUB_SECRET**: GitHub OAuth App Client Secret
 - **YAHOO_CLIENT_ID**: Yahoo OAuth Client ID
 - **YAHOO_CLIENT_SECRET**: Yahoo OAuth Client Secret
 - **YAHOO_AUTH_URL**: Yahoo OAuth authorization endpoint
@@ -183,9 +164,9 @@ For Vercel preview deployments:
 
 **Solution**:
 1. Verify the redirect URI in your OAuth provider settings matches:
-   - Local: `http://localhost:3000/api/auth/callback/[provider]`
-   - Production: `https://yourdomain.com/api/auth/callback/[provider]`
-   - Preview: `https://{VERCEL_URL}/api/auth/callback/[provider]`
+   - Local: `http://localhost:3000/api/auth/callback/yahoo`
+   - Production: `https://yourdomain.com/api/auth/callback/yahoo`
+   - Preview: `https://{VERCEL_URL}/api/auth/callback/yahoo`
 2. Double-check Client ID and Client Secret values
 3. Regenerate credentials if needed
 4. Check browser console for detailed error messages
@@ -232,7 +213,6 @@ For Vercel preview deployments:
 ## Additional Resources
 
 - [NextAuth.js Documentation](https://next-auth.js.org/)
-- [GitHub OAuth Documentation](https://docs.github.com/en/developers/apps/building-oauth-apps)
 - [Yahoo OAuth Documentation](https://developer.yahoo.com/oauth2/guide/)
 - [Environment Variables in Next.js](https://nextjs.org/docs/basic-features/environment-variables)
 - [Vercel Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables)
