@@ -6,12 +6,10 @@ import './styles.css';
 // `useSession()` anywhere in your application to access the `session` object.
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <SessionProvider
-      // Provider options are not required but can be useful in situations where
-      // you have a short session maxAge time. Shown here with default values.
-      session={pageProps.session}
-    >
-      <Component {...pageProps} />
-    </SessionProvider>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (SessionProvider as any)({
+      session: pageProps.session,
+      children: <Component {...pageProps} />,
+    })
   );
 }

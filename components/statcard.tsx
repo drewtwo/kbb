@@ -30,12 +30,11 @@ interface Team {
 }
 
 export function generateAvatar(team: Team): string {
-  if (typeof team.team_logo === 'string' || team.team_logo instanceof String) {
-    return team.team_logo as string;
+  if (typeof team.team_logo === 'string') {
+    return team.team_logo;
   } else if (
     team.team_logos &&
-    (typeof team.team_logos.team_logo.url === 'string' ||
-      team.team_logos.team_logo.url instanceof String)
+    typeof team.team_logos.team_logo.url === 'string'
   ) {
     return team.team_logos.team_logo.url;
   } else {
@@ -62,10 +61,10 @@ interface StatCardProps {
 
 const StatCard = ({
   name,
-  shortName,
-  delta,
-  deltaDirection,
-  currentValue,
+  shortName: _shortName,
+  delta: _delta,
+  deltaDirection: _deltaDirection,
+  currentValue: _currentValue,
   chartData,
 }: StatCardProps) => (
   <div>
@@ -75,7 +74,6 @@ const StatCard = ({
         labels: generateLabels(chartData),
         datasets: [
           {
-            id: 1,
             label: name,
             data: chartData,
           },

@@ -19,7 +19,7 @@ export default async function weekStats(
     } else {
       res.status(500).json({ error: 'no team id provided' });
     }
-  } catch (err) {
+  } catch (_err) {
     res.status(500).json({ error: 'failed to load data' });
   }
 }

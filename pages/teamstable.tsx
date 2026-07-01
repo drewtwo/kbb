@@ -1,6 +1,4 @@
 import useSwr from 'swr';
-import Link from 'next/link';
-import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import leagueStyles from '../components/leagues.module.css';
 import Layout from '../components/layout';
