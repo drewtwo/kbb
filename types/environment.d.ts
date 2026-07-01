@@ -10,7 +10,6 @@ declare global {
       NODE_ENV: 'development' | 'production';
       GITHUB_ID: string;
       GITHUB_SECRET: string;
-      SECRET: string;
       NEXTAUTH_URL?: string;
       NEXTAUTH_SECRET?: string;
       VERCEL_URL?: string;
