@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate-env": "node -e \"require('./lib/validate-env.ts').validateEnvironmentOrThrow()\""
   },
   "dependencies": {
     "chart.js": "^4.4.0",
