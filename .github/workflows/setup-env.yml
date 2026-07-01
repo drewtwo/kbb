@@ -46,16 +46,33 @@ jobs:
           # which will use VERCEL_URL when available
           echo "Preview deployment detected. NEXTAUTH_URL will be dynamically set using VERCEL_URL"
 
-      - name: Verify .env.local was created
+      - name: Verify .env.local was created with all required variables
         run: |
-          if [ -f .env.local ]; then
-            echo ".env.local created successfully"
-            echo "Environment variables set:"
-            grep -v "^$" .env.local | cut -d= -f1
-          else
-            echo "ERROR: .env.local was not created"
+          if [ ! -f .env.local ]; then
+            echo "❌ ERROR: .env.local was not created"
             exit 1
           fi
+          
+          echo "✅ .env.local created successfully"
+          echo ""
+          echo "Environment variables set:"
+          grep -v "^$" .env.local | cut -d= -f1 | sort
+          echo ""
+          
+          # Verify that NEXTAUTH_SECRET is not empty
+          if grep -q "^NEXTAUTH_SECRET=$" .env.local; then
+            echo "❌ ERROR: NEXTAUTH_SECRET is empty in .env.local"
+            echo "This is a required variable for the build to succeed."
+            exit 1
+          fi
+          
+          if ! grep -q "^NEXTAUTH_SECRET=" .env.local; then
+            echo "❌ ERROR: NEXTAUTH_SECRET is not set in .env.local"
+            echo "This is a required variable for the build to succeed."
+            exit 1
+          fi
+          
+          echo "✅ NEXTAUTH_SECRET is properly set"
 
       - name: Validate environment variables at build time
         run: |
@@ -73,7 +90,7 @@ jobs:
             exit 1
           fi
           
-          echo "✅ NEXTAUTH_SECRET is set"
+          echo "✅ NEXTAUTH_SECRET is set in GitHub Secrets"
           
           # Check for recommended variables
           if [ -z "${{ secrets.NEXTAUTH_URL }}" ]; then
@@ -96,7 +113,7 @@ jobs:
           fi
           
           echo ""
-          echo "✅ Build-time environment validation passed!"
+          echo "✅ Pre-build environment validation passed!"
 
       - name: Lint
         run: yarn lint
