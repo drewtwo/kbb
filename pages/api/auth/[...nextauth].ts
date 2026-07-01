@@ -1,6 +1,22 @@
 import NextAuth from 'next-auth';
 import GithubProvider from 'next-auth/providers/github';
 
+// Dynamically determine NEXTAUTH_URL based on environment
+const getNextAuthUrl = (): string => {
+  // Production environment
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+
+  // Vercel preview deployments
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  // Local development fallback
+  return 'http://localhost:3000';
+};
+
 // For more information on each option (and a full list of options) go to
 // https://next-auth.js.org/configuration/options
 export default NextAuth({
@@ -82,7 +98,13 @@ export default NextAuth({
   // https://next-auth.js.org/configuration/callbacks
   callbacks: {
     // async signIn({ user, account, profile, email, credentials }) { return true },
-    // async redirect({ url, baseUrl }) { return baseUrl },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
     // async session({ session, token, user }) { return session },
     async jwt({ token, user, account, profile, isNewUser }) {
       if (account) {

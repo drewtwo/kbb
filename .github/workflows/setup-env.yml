@@ -39,6 +39,14 @@ jobs:
           YAHOO_CLIENT_SECRET=${{ secrets.YAHOO_CLIENT_SECRET }}
           EOF
 
+      - name: Set NEXTAUTH_URL for preview deployments
+        if: github.event_name == 'pull_request' && env.VERCEL_URL != ''
+        run: |
+          # For preview deployments, if NEXTAUTH_URL is not explicitly set in secrets,
+          # we can rely on the dynamic NEXTAUTH_URL resolution in the NextAuth config
+          # which will use VERCEL_URL when available
+          echo "Preview deployment detected. NEXTAUTH_URL will be dynamically set using VERCEL_URL"
+
       - name: Verify .env.local was created
         run: |
           if [ -f .env.local ]; then
