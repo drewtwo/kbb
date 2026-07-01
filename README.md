@@ -168,7 +168,12 @@ npm run lint
 
 # Fix ESLint issues
 npm run lint:fix
+
+# Check TypeScript types
+npm run typecheck
 ```
+
+For comprehensive linting guidelines, type safety requirements, and best practices, see [AGENTS.md](AGENTS.md).
 
 ## Project Structure
 
@@ -356,7 +361,10 @@ Run quality checks before committing:
 
 ```bash
 npm run lint
+npm run typecheck
 ```
+
+For detailed linting guidelines, configuration documentation, and best practices, see [AGENTS.md](AGENTS.md).
 
 ### Git Workflow
 
