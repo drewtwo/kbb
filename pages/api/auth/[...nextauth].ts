@@ -1,4 +1,5 @@
 import NextAuth from 'next-auth';
+import type { OAuthConfig } from 'next-auth/providers';
 
 // Dynamically determine NEXTAUTH_URL based on environment
 const getNextAuthUrl = (): string => {
@@ -15,6 +16,13 @@ const getNextAuthUrl = (): string => {
   // Local development fallback
   return 'http://localhost:3000';
 };
+
+interface YahooProfile {
+  sub: string;
+  name: string;
+  email: string;
+  picture: string;
+}
 
 // For more information on each option (and a full list of options) go to
 // https://next-auth.js.org/configuration/options
@@ -33,7 +41,7 @@ export default NextAuth({
       clientId: process.env.YAHOO_CLIENT_ID!,
       clientSecret: process.env.YAHOO_CLIENT_SECRET!,
       userinfo: 'https://api.login.yahoo.com/openid/v1/userinfo',
-      profile: (profile) => {
+      profile: (profile: YahooProfile) => {
         return {
           id: profile.sub,
           name: profile.name,
@@ -41,7 +49,7 @@ export default NextAuth({
           image: profile.picture,
         };
       },
-    },
+    } as OAuthConfig<YahooProfile>,
   ],
   secret: process.env.NEXTAUTH_SECRET,
   session: {

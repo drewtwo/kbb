@@ -10,10 +10,14 @@ const parserOptions = { explicitArray: false };
 
 const parser = new xml2js.Parser(parserOptions);
 
-export const getTeams = async (req: NextApiRequest) => {
+interface ErrorResponse {
+  error: string;
+}
+
+export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
   return new Promise(async (resolve) => {
     try {
-      let games = {};
+      let games: unknown = {};
       const token = await getToken({ req, secret });
       const options = {
         hostname: 'fantasysports.yahooapis.com',
@@ -37,7 +41,7 @@ export const getTeams = async (req: NextApiRequest) => {
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              games = result.fantasy_content.users.user.games.game;
+              games = (result as Record<string, unknown>).fantasy_content;
               resolve(games);
             });
           });
@@ -46,7 +50,7 @@ export const getTeams = async (req: NextApiRequest) => {
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        const newError = { error: `Error on Get Request --> ${error}` };
+        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
@@ -59,16 +63,17 @@ export const getTeams = async (req: NextApiRequest) => {
 
 export const getLeagueTeams = async (
   req: NextApiRequest,
-  league_key: string
-) => {
+  league_key: string | string[]
+): Promise<unknown> => {
   return new Promise(async (resolve) => {
     try {
-      let league = {};
+      let league: unknown = {};
       const token = await getToken({ req, secret });
+      const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
       const options = {
         hostname: 'fantasysports.yahooapis.com',
         port: 443,
-        path: `/fantasy/v2/league/${league_key}/teams`,
+        path: `/fantasy/v2/league/${leagueKeyStr}/teams`,
         method: 'GET',
         headers: {
           Accept: '*/*',
@@ -87,7 +92,7 @@ export const getLeagueTeams = async (
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              league = result.fantasy_content.league;
+              league = (result as Record<string, unknown>).fantasy_content;
               resolve(league);
             });
           });
@@ -96,7 +101,7 @@ export const getLeagueTeams = async (
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        const newError = { error: `Error on Get Request --> ${error}` };
+        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
@@ -109,16 +114,17 @@ export const getLeagueTeams = async (
 
 export const getLeagueSettings = async (
   req: NextApiRequest,
-  league_key: string
-) => {
+  league_key: string | string[]
+): Promise<unknown> => {
   return new Promise(async (resolve) => {
     try {
-      let league = {};
+      let league: unknown = {};
       const token = await getToken({ req, secret });
+      const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
       const options = {
         hostname: 'fantasysports.yahooapis.com',
         port: 443,
-        path: `/fantasy/v2/league/${league_key}/settings`,
+        path: `/fantasy/v2/league/${leagueKeyStr}/settings`,
         method: 'GET',
         headers: {
           Accept: '*/*',
@@ -137,7 +143,7 @@ export const getLeagueSettings = async (
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              league = result.fantasy_content.league.settings;
+              league = (result as Record<string, unknown>).fantasy_content;
               resolve(league);
             });
           });
@@ -146,7 +152,7 @@ export const getLeagueSettings = async (
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        const newError = { error: `Error on Get Request --> ${error}` };
+        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
@@ -157,12 +163,13 @@ export const getLeagueSettings = async (
   });
 };
 
-export const getWeeklyStats = async (req: NextApiRequest, team_key: string) => {
-  let stats = await getWeekStats(req, team_key, '0');
-  const week = stats.week;
-  const result = [stats];
+export const getWeeklyStats = async (req: NextApiRequest, team_key: string | string[]): Promise<unknown[]> => {
+  const teamKeyStr = Array.isArray(team_key) ? team_key[0] : team_key;
+  let stats = await getWeekStats(req, teamKeyStr, '0');
+  const week = (stats as Record<string, unknown>).week as number;
+  const result: unknown[] = [stats];
   for (let index = week - 1; index > 0; index--) {
-    stats = await getWeekStats(req, team_key, String(index));
+    stats = await getWeekStats(req, teamKeyStr, String(index));
     result.push(stats);
   }
   return result;
@@ -172,10 +179,10 @@ export const getWeekStats = async (
   req: NextApiRequest,
   team_key: string,
   week: string
-) => {
+): Promise<unknown> => {
   return new Promise(async (resolve) => {
     try {
-      let stats = {};
+      let stats: unknown = {};
       const token = await getToken({ req, secret });
       const options = {
         hostname: 'fantasysports.yahooapis.com',
@@ -199,7 +206,7 @@ export const getWeekStats = async (
           const buffer = Buffer.concat(chunks);
           zlib.gunzip(buffer, (_err, dezipped) => {
             parser.parseString(dezipped.toString(), function (_err, result) {
-              stats = result.fantasy_content.team.team_stats;
+              stats = (result as Record<string, unknown>).fantasy_content;
               resolve(stats);
             });
           });
@@ -208,7 +215,7 @@ export const getWeekStats = async (
 
       request.on('error', (error) => {
         console.error(`Error on Get Request --> ${error}`);
-        const newError = { error: `Error on Get Request --> ${error}` };
+        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
         resolve(newError);
       });
 
