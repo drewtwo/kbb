@@ -22,8 +22,9 @@ interface LeagueData {
 const League = () => {
   const router = useRouter();
   const { gameid } = router.query;
-  const league_info_route = `/api/leagueinfo/${gameid}`;
-  const { data, error } = useSwr(league_info_route, fetcher);
+  const gameIdStr = Array.isArray(gameid) ? gameid[0] : gameid;
+  const league_info_route = `/api/leagueinfo/${gameIdStr}`;
+  const { data, error } = useSwr(gameIdStr ? league_info_route : null, fetcher);
 
   if (error) return <div>Failed to load teams</div>;
   if (!data) return <div>Loading...</div>;

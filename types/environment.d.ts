@@ -11,6 +11,11 @@ declare global {
       GITHUB_ID: string;
       GITHUB_SECRET: string;
       SECRET: string;
+      NEXTAUTH_URL?: string;
+      NEXTAUTH_SECRET?: string;
+      VERCEL_URL?: string;
     }
   }
 }
+
+export {};

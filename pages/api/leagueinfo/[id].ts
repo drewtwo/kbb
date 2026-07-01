@@ -4,6 +4,8 @@ import { getLeagueTeams, getLeagueSettings } from '../../../utils/yahooData';
 type ResponseData = {
   name?: string;
   error?: string;
+  teams?: unknown;
+  settings?: unknown;
 };
 
 export default async function teams(
@@ -12,7 +14,7 @@ export default async function teams(
 ) {
   try {
     const { id } = req.query;
-    if (id !== undefined) {
+    if (id !== undefined && id !== null) {
       const league_teams = await getLeagueTeams(req, id);
       const league_settings = await getLeagueSettings(req, id);
       // console.log(league_info);

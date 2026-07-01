@@ -4,6 +4,7 @@ import { getWeeklyStats } from '../../../utils/yahooData';
 type ResponseData = {
   name?: string;
   error?: string;
+  stats_by_week?: unknown[];
 };
 
 export default async function weekStats(
@@ -12,7 +13,7 @@ export default async function weekStats(
 ) {
   try {
     const { teamid } = req.query;
-    if (teamid !== undefined) {
+    if (teamid !== undefined && teamid !== null) {
       const weekly_stats = await getWeeklyStats(req, teamid);
       res.status(200).json({ stats_by_week: weekly_stats });
     } else {
