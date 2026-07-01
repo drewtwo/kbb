@@ -15,49 +15,51 @@ interface ErrorResponse {
 }
 
 export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
-  return new Promise(async (resolve) => {
-    try {
-      let games: unknown = {};
-      const token = await getToken({ req, secret });
-      const options = {
-        hostname: 'fantasysports.yahooapis.com',
-        port: 443,
-        path: '/fantasy/v2/users;use_login=1/games/teams',
-        method: 'GET',
-        headers: {
-          Accept: '*/*',
-          'accept-encoding': 'gzip,deflate',
-          Authorization: `Bearer ${token?.accessToken}`,
-        },
-      };
+  return new Promise((resolve) => {
+    (async () => {
+      try {
+        let games: unknown = {};
+        const token = await getToken({ req, secret });
+        const options = {
+          hostname: 'fantasysports.yahooapis.com',
+          port: 443,
+          path: '/fantasy/v2/users;use_login=1/games/teams',
+          method: 'GET',
+          headers: {
+            Accept: '*/*',
+            'accept-encoding': 'gzip,deflate',
+            Authorization: `Bearer ${token?.accessToken}`,
+          },
+        };
 
-      const request = https.request(options, (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
+        const request = https.request(options, (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => {
+            chunks.push(chunk);
+          });
 
-        response.on('end', function () {
-          const buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
-              games = (result as Record<string, unknown>).fantasy_content;
-              resolve(games);
+          response.on('end', function () {
+            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
+              parser.parseString(dezipped.toString(), function (_err, result) {
+                games = (result as Record<string, unknown>).fantasy_content;
+                resolve(games);
+              });
             });
           });
         });
-      });
 
-      request.on('error', (error) => {
-        console.error(`Error on Get Request --> ${error}`);
-        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
-        resolve(newError);
-      });
+        request.on('error', (error) => {
+          console.error(`Error on Get Request --> ${error}`);
+          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          resolve(newError);
+        });
 
-      request.end();
-    } catch (err) {
-      resolve({ error: 'failed to load data' });
-    }
+        request.end();
+      } catch (err) {
+        resolve({ error: 'failed to load data' });
+      }
+    })();
   });
 };
 
@@ -65,50 +67,52 @@ export const getLeagueTeams = async (
   req: NextApiRequest,
   league_key: string | string[]
 ): Promise<unknown> => {
-  return new Promise(async (resolve) => {
-    try {
-      let league: unknown = {};
-      const token = await getToken({ req, secret });
-      const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
-      const options = {
-        hostname: 'fantasysports.yahooapis.com',
-        port: 443,
-        path: `/fantasy/v2/league/${leagueKeyStr}/teams`,
-        method: 'GET',
-        headers: {
-          Accept: '*/*',
-          'accept-encoding': 'gzip,deflate',
-          Authorization: `Bearer ${token?.accessToken}`,
-        },
-      };
+  return new Promise((resolve) => {
+    (async () => {
+      try {
+        let league: unknown = {};
+        const token = await getToken({ req, secret });
+        const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
+        const options = {
+          hostname: 'fantasysports.yahooapis.com',
+          port: 443,
+          path: `/fantasy/v2/league/${leagueKeyStr}/teams`,
+          method: 'GET',
+          headers: {
+            Accept: '*/*',
+            'accept-encoding': 'gzip,deflate',
+            Authorization: `Bearer ${token?.accessToken}`,
+          },
+        };
 
-      const request = https.request(options, (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
+        const request = https.request(options, (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => {
+            chunks.push(chunk);
+          });
 
-        response.on('end', function () {
-          const buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
-              league = (result as Record<string, unknown>).fantasy_content;
-              resolve(league);
+          response.on('end', function () {
+            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
+              parser.parseString(dezipped.toString(), function (_err, result) {
+                league = (result as Record<string, unknown>).fantasy_content;
+                resolve(league);
+              });
             });
           });
         });
-      });
 
-      request.on('error', (error) => {
-        console.error(`Error on Get Request --> ${error}`);
-        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
-        resolve(newError);
-      });
+        request.on('error', (error) => {
+          console.error(`Error on Get Request --> ${error}`);
+          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          resolve(newError);
+        });
 
-      request.end();
-    } catch (err) {
-      resolve({ error: 'failed to load data' });
-    }
+        request.end();
+      } catch (err) {
+        resolve({ error: 'failed to load data' });
+      }
+    })();
   });
 };
 
@@ -116,50 +120,52 @@ export const getLeagueSettings = async (
   req: NextApiRequest,
   league_key: string | string[]
 ): Promise<unknown> => {
-  return new Promise(async (resolve) => {
-    try {
-      let league: unknown = {};
-      const token = await getToken({ req, secret });
-      const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
-      const options = {
-        hostname: 'fantasysports.yahooapis.com',
-        port: 443,
-        path: `/fantasy/v2/league/${leagueKeyStr}/settings`,
-        method: 'GET',
-        headers: {
-          Accept: '*/*',
-          'accept-encoding': 'gzip,deflate',
-          Authorization: `Bearer ${token?.accessToken}`,
-        },
-      };
+  return new Promise((resolve) => {
+    (async () => {
+      try {
+        let league: unknown = {};
+        const token = await getToken({ req, secret });
+        const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
+        const options = {
+          hostname: 'fantasysports.yahooapis.com',
+          port: 443,
+          path: `/fantasy/v2/league/${leagueKeyStr}/settings`,
+          method: 'GET',
+          headers: {
+            Accept: '*/*',
+            'accept-encoding': 'gzip,deflate',
+            Authorization: `Bearer ${token?.accessToken}`,
+          },
+        };
 
-      const request = https.request(options, (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
+        const request = https.request(options, (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => {
+            chunks.push(chunk);
+          });
 
-        response.on('end', function () {
-          const buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
-              league = (result as Record<string, unknown>).fantasy_content;
-              resolve(league);
+          response.on('end', function () {
+            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
+              parser.parseString(dezipped.toString(), function (_err, result) {
+                league = (result as Record<string, unknown>).fantasy_content;
+                resolve(league);
+              });
             });
           });
         });
-      });
 
-      request.on('error', (error) => {
-        console.error(`Error on Get Request --> ${error}`);
-        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
-        resolve(newError);
-      });
+        request.on('error', (error) => {
+          console.error(`Error on Get Request --> ${error}`);
+          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          resolve(newError);
+        });
 
-      request.end();
-    } catch (err) {
-      resolve({ error: 'failed to load data' });
-    }
+        request.end();
+      } catch (err) {
+        resolve({ error: 'failed to load data' });
+      }
+    })();
   });
 };
 
@@ -180,48 +186,50 @@ export const getWeekStats = async (
   team_key: string,
   week: string
 ): Promise<unknown> => {
-  return new Promise(async (resolve) => {
-    try {
-      let stats: unknown = {};
-      const token = await getToken({ req, secret });
-      const options = {
-        hostname: 'fantasysports.yahooapis.com',
-        port: 443,
-        path: `/fantasy/v2/team/${team_key}/stats;type=week;week=${week}`,
-        method: 'GET',
-        headers: {
-          Accept: '*/*',
-          'accept-encoding': 'gzip,deflate',
-          Authorization: `Bearer ${token?.accessToken}`,
-        },
-      };
+  return new Promise((resolve) => {
+    (async () => {
+      try {
+        let stats: unknown = {};
+        const token = await getToken({ req, secret });
+        const options = {
+          hostname: 'fantasysports.yahooapis.com',
+          port: 443,
+          path: `/fantasy/v2/team/${team_key}/stats;type=week;week=${week}`,
+          method: 'GET',
+          headers: {
+            Accept: '*/*',
+            'accept-encoding': 'gzip,deflate',
+            Authorization: `Bearer ${token?.accessToken}`,
+          },
+        };
 
-      const request = https.request(options, (response) => {
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
+        const request = https.request(options, (response) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk) => {
+            chunks.push(chunk);
+          });
 
-        response.on('end', function () {
-          const buffer = Buffer.concat(chunks);
-          zlib.gunzip(buffer, (_err, dezipped) => {
-            parser.parseString(dezipped.toString(), function (_err, result) {
-              stats = (result as Record<string, unknown>).fantasy_content;
-              resolve(stats);
+          response.on('end', function () {
+            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
+              parser.parseString(dezipped.toString(), function (_err, result) {
+                stats = (result as Record<string, unknown>).fantasy_content;
+                resolve(stats);
+              });
             });
           });
         });
-      });
 
-      request.on('error', (error) => {
-        console.error(`Error on Get Request --> ${error}`);
-        const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
-        resolve(newError);
-      });
+        request.on('error', (error) => {
+          console.error(`Error on Get Request --> ${error}`);
+          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          resolve(newError);
+        });
 
-      request.end();
-    } catch (err) {
-      resolve({ error: 'failed to load data' });
-    }
+        request.end();
+      } catch (err) {
+        resolve({ error: 'failed to load data' });
+      }
+    })();
   });
 };

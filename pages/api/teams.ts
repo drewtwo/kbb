@@ -13,8 +13,8 @@ export default async function teams(
   try {
     const teams = await getTeams(req);
     // console.log(teams);
-    res.status(200).json(teams);
-  } catch (err) {
+    res.status(200).json(teams as ResponseData);
+  } catch (_err) {
     res.status(500).json({ error: 'failed to load data' });
   }
 }

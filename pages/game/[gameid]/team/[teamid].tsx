@@ -2,7 +2,6 @@ import { useRouter } from 'next/router';
 import Layout from '../../../../components/layout';
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
-import leagueStyles from '../../../../components/leagues.module.css';
 
 const StatCard = dynamic(() => import('../../../../components/statcard'), {
   ssr: false,
@@ -29,16 +28,6 @@ interface StatCategory {
   stat_id: string;
   name: string;
   display_name: string;
-}
-
-interface SettingsData {
-  settings: {
-    stat_categories: {
-      stats: {
-        stat: StatCategory[];
-      };
-    };
-  };
 }
 
 export function generateChartData(stat_id: string, weekly_stats_data: WeeklyStatsData): (string | number)[] {
@@ -118,7 +107,7 @@ const Team = () => {
   return (
     <Layout>
       <p>League Stats</p>
-      <div className={leagueStyles.grid2}>
+      <div>
         {stats_response.data.settings.stat_categories.stats.stat.map((stat: StatCategory) => (
           <div key={stat.name}>
             <StatCard

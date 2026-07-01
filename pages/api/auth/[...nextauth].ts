@@ -1,21 +1,5 @@
 import NextAuth from 'next-auth';
-import type { OAuthConfig } from 'next-auth/providers';
-
-// Dynamically determine NEXTAUTH_URL based on environment
-const getNextAuthUrl = (): string => {
-  // Production environment
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL;
-  }
-
-  // Vercel preview deployments
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-
-  // Local development fallback
-  return 'http://localhost:3000';
-};
+import type { OAuthConfig } from 'next-auth/providers/oauth';
 
 interface YahooProfile {
   sub: string;
@@ -106,7 +90,7 @@ export default NextAuth({
       return baseUrl;
     },
     // async session({ session, token, user }) { return session },
-    async jwt({ token, user, account, profile, isNewUser }) {
+    async jwt({ token, account }) {
       if (account) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;

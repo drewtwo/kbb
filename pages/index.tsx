@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '../components/layout';
 
 export default function Page() {
-  const { data: session, status } = useSession();
+  const { data: _session, status } = useSession();
   const router = useRouter();
 
   useEffect(() => {

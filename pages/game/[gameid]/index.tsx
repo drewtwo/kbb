@@ -2,21 +2,12 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
 import Link from 'next/link';
-import leagueStyles from '../../../components/leagues.module.css';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface Team {
   name: string;
   team_id: string;
-}
-
-interface LeagueData {
-  teams: {
-    teams: {
-      team: Team[];
-    };
-  };
 }
 
 const League = () => {

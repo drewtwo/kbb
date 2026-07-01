@@ -22,7 +22,7 @@ export default async function teams(
     } else {
       res.status(500).json({ error: 'no league id provided' });
     }
-  } catch (err) {
+  } catch (_err) {
     res.status(500).json({ error: 'failed to load data' });
   }
 }
