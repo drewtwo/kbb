@@ -1,18 +1,10 @@
 /** @type {import('next').NextConfig} */
 
-// Import environment validation module
+// Import environment validation module asynchronously
 // This will validate required environment variables at build time
-// eslint-disable-next-line global-require
-const { validateEnvironmentOrThrow } = require('./lib/validate-env.js');
+// Using dynamic import() to avoid ESLint global-require error
 
-// Validate environment variables during build
-// This ensures all required secrets are set before the build proceeds
-if (process.env.NODE_ENV === 'production' || process.env.NEXT_PHASE === 'phase-production-build') {
-  console.log('\n🔍 Validating environment variables at build time...\n');
-  validateEnvironmentOrThrow();
-}
-
-const nextConfig = {
+let nextConfig = {
   reactStrictMode: true,
   images: {
     domains: [
@@ -23,5 +15,20 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
   },
 };
+
+// Validate environment variables during build
+// This ensures all required secrets are set before the build proceeds
+(async () => {
+  if (process.env.NODE_ENV === 'production' || process.env.NEXT_PHASE === 'phase-production-build') {
+    console.log('\n🔍 Validating environment variables at build time...\n');
+    try {
+      const { validateEnvironmentOrThrow } = await import('./lib/validate-env.js');
+      validateEnvironmentOrThrow();
+    } catch (error) {
+      console.error('Failed to validate environment:', error.message);
+      process.exit(1);
+    }
+  }
+})();
 
 module.exports = nextConfig;
