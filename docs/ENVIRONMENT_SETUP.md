@@ -6,6 +6,20 @@ This document explains how to set up environment variables for local development
 
 The application uses NextAuth for authentication with Yahoo OAuth provider. Proper environment configuration is critical for the application to function correctly.
 
+## CRITICAL: NEXTAUTH_SECRET Requirement
+
+**NEXTAUTH_SECRET is REQUIRED for all deployments (local, preview, and production).**
+
+- **What it is**: A secret key used to sign and encrypt JWT tokens for authentication
+- **Why it's required**: Without it, authentication will fail with a 500 error
+- **How to generate**: `openssl rand -base64 32`
+- **Where to set it**:
+  - Local development: `.env.local` file
+  - Production/GitHub Actions: GitHub Secrets (Settings > Secrets and variables > Actions)
+  - Vercel preview deployments: GitHub Secrets (will be passed to Vercel)
+
+If `NEXTAUTH_SECRET` is missing, the application will throw a clear error message on startup explaining how to fix it.
+
 ## NEXTAUTH_URL Behavior
 
 The application implements intelligent NEXTAUTH_URL resolution that automatically adapts to different deployment environments:
@@ -53,6 +67,8 @@ openssl rand -base64 32
 ```
 
 Copy the output and paste it as the value for `NEXTAUTH_SECRET` in `.env.local`.
+
+**This step is REQUIRED** — the application will not start without this secret.
 
 ### 3. Configure Yahoo OAuth
 
@@ -103,12 +119,14 @@ Add the following secrets to your GitHub repository:
 
 | Secret Name | Description | Required |
 |-------------|-------------|----------|
-| `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) | Yes |
-| `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) | Yes |
+| `NEXTAUTH_SECRET` | Secure secret for NextAuth (generate with `openssl rand -base64 32`) | **YES** |
+| `NEXTAUTH_URL` | Your production domain (e.g., `https://yourdomain.com`) | **YES** |
 | `YAHOO_AUTH_URL` | Yahoo OAuth authorization URL | Yes |
 | `YAHOO_TOKEN_URL` | Yahoo OAuth token URL | Yes |
 | `YAHOO_CLIENT_ID` | Yahoo OAuth Client ID | Yes |
 | `YAHOO_CLIENT_SECRET` | Yahoo OAuth Client Secret | Yes |
+
+**CRITICAL**: `NEXTAUTH_SECRET` is **REQUIRED** for production deployments. Without it, authentication will fail with a 500 error.
 
 **Note**: `YAHOO_CALLBACK_URL` is **not** required as a GitHub Secret. It is automatically generated in the CI/CD workflow by appending `/api/auth/callback/yahoo` to `NEXTAUTH_URL`.
 
@@ -133,12 +151,13 @@ For Vercel preview deployments:
 2. If `NEXTAUTH_URL` is not set in GitHub Secrets, the NextAuth configuration will automatically use `https://{VERCEL_URL}`
 3. `YAHOO_CALLBACK_URL` will be automatically derived as `https://{VERCEL_URL}/api/auth/callback/yahoo`
 4. No additional configuration is needed for preview deployments
+5. **NEXTAUTH_SECRET must still be set in GitHub Secrets** — it will be passed to Vercel automatically
 
 ## Environment Variables Reference
 
 ### Required Variables
 
-- **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption
+- **NEXTAUTH_SECRET**: Secret key for NextAuth JWT signing and encryption (**REQUIRED for all deployments**)
 - **NEXTAUTH_URL**: The URL where your application is deployed (required for production, optional for local/preview)
 - **YAHOO_CLIENT_ID**: Yahoo OAuth Client ID
 - **YAHOO_CLIENT_SECRET**: Yahoo OAuth Client Secret
@@ -154,6 +173,21 @@ For Vercel preview deployments:
 - **VERCEL_URL**: Automatically provided by Vercel for preview deployments (used when NEXTAUTH_URL is not set)
 
 ## Troubleshooting
+
+### Application Fails to Start with "NEXTAUTH_SECRET is not defined"
+
+**Symptom**: Application throws an error on startup: "NEXTAUTH_SECRET is not defined."
+
+**Causes**:
+1. `NEXTAUTH_SECRET` is not set in `.env.local` (local development)
+2. `NEXTAUTH_SECRET` is not set in GitHub Secrets (production/preview deployments)
+3. `NEXTAUTH_SECRET` is set to an empty string
+
+**Solution**:
+1. Generate a secret: `openssl rand -base64 32`
+2. For local development: Add it to `.env.local`
+3. For production: Add it as a GitHub Secret named `NEXTAUTH_SECRET`
+4. Restart the application
 
 ### 500 Error on Login
 
@@ -227,6 +261,7 @@ For Vercel preview deployments:
 5. **Keep dependencies updated**: Regularly update NextAuth and other security-related packages
 6. **Use HTTPS in production**: Always use HTTPS URLs for production deployments
 7. **Verify OAuth redirect URIs**: Ensure redirect URIs in OAuth provider settings exactly match your deployment URLs
+8. **Protect GitHub Secrets**: Limit access to GitHub Secrets to authorized team members only
 
 ## Additional Resources
 

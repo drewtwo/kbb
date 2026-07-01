@@ -8,6 +8,29 @@ interface YahooProfile {
   picture: string;
 }
 
+// Validate NEXTAUTH_SECRET at runtime
+if (!process.env.NEXTAUTH_SECRET) {
+  const errorMessage = [
+    'NEXTAUTH_SECRET is not defined.',
+    'This is a critical configuration error that prevents authentication from working.',
+    '',
+    'To fix this:',
+    '1. Local Development: Add NEXTAUTH_SECRET to your .env.local file',
+    '   Generate a secret with: openssl rand -base64 32',
+    '',
+    '2. Production/GitHub Actions: Add NEXTAUTH_SECRET as a GitHub Secret',
+    '   - Go to Settings > Secrets and variables > Actions',
+    '   - Click "New repository secret"',
+    '   - Name: NEXTAUTH_SECRET',
+    '   - Value: (generate with: openssl rand -base64 32)',
+    '',
+    'See docs/ENVIRONMENT_SETUP.md for detailed setup instructions.',
+  ].join('\n');
+
+  console.error(errorMessage);
+  throw new Error(errorMessage);
+}
+
 // For more information on each option (and a full list of options) go to
 // https://next-auth.js.org/configuration/options
 export default NextAuth({

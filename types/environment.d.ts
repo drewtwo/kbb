@@ -11,7 +11,7 @@ declare global {
       GITHUB_ID: string;
       GITHUB_SECRET: string;
       NEXTAUTH_URL?: string;
-      NEXTAUTH_SECRET?: string;
+      NEXTAUTH_SECRET: string; // Required in production, validated at runtime
       VERCEL_URL?: string;
     }
   }
