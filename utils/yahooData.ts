@@ -3,6 +3,8 @@ import https from 'https';
 import zlib from 'zlib';
 import xml2js from 'xml2js';
 import { NextApiRequest } from 'next';
+import { logDiagnostic, logDiagnosticError, logDiagnosticHttpResponse, logDiagnosticDump, logDiagnosticValidationFailure } from './diagnosticLogger';
+import { dumpObject, describeObjectStructure } from './objectDumper';
 
 const secret = process.env.NEXTAUTH_SECRET;
 
