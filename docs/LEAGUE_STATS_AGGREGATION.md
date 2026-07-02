@@ -1,24 +1,17 @@
-# League Stats Multi-Week Aggregation
+# League Standings — Direct API Approach
 
-This document explains how the multi-week stat aggregation feature works, how
-the data flows through the application, and how to configure the week range for
-different seasons.
+This document explains how league standings are fetched and surfaced through
+the application, and describes the migration away from the previous multi-week
+stat aggregation approach.
 
 ---
 
 ## Overview
 
-Yahoo Fantasy Baseball stats are returned on a **per-week** basis by the Yahoo
-Fantasy Sports API.  To display meaningful season-level statistics for each
-team in a league, the application must:
-
-1. Fetch stats for **every week** in the season for **every team**.
-2. **Sum** (aggregate) each stat across all weeks.
-3. Return the aggregated totals to the front-end for display.
-
-Prior to this fix, the `/api/leagueinfo/[id]` endpoint only returned team
-metadata and league settings — it did not fetch or aggregate any weekly stats.
-As a result, the league stats view showed no per-team season totals.
+League standings are fetched directly from the Yahoo Fantasy Sports
+**`/standings`** endpoint in a single API call. The response includes each
+team's win/loss/tie record, points for/against, and overall rank — everything
+needed to display a standings table without any additional aggregation.
 
 ---
 
@@ -27,38 +20,43 @@ As a result, the league stats view showed no per-team season totals.
 ```
 Browser
   └─ GET /api/leagueinfo/[id]
-        ├─ getLeagueTeams()         → list of teams in the league
-        ├─ getLeagueSettings()      → stat categories / league config
-        └─ getLeagueAggregatedStats()
-              ├─ extractTeamsFromLeagueContent()   → team list
-              └─ for each team:
-                    for each week (SEASON_START_WEEK … SEASON_END_WEEK):
-                        getWeekStats(team_key, week)   → raw fantasy_content
-                    aggregateWeeklyStats(weeklyStats, team_key, team_name)
-                        → AggregatedTeamStats { stats: Record<stat_id, number> }
+        ├─ getLeagueTeams()      → list of teams in the league
+        ├─ getLeagueSettings()   → stat categories / league config
+        └─ getLeagueStandings()  → StandingsTeam[] (rank, W/L/T, PF, PA)
+              └─ extractStandingsFromLeagueContent()  (called internally)
 ```
 
-The aggregated result is included in the API response as `aggregated_stats`:
+`getLeagueStandings` calls `extractStandingsFromLeagueContent` internally and
+returns a ready-to-use `StandingsTeam[]` (or an `ErrorResponse` on failure).
+The `/api/leagueinfo/[id]` endpoint includes the array in the response JSON
+under the `standings` key.
+
+---
+
+## API Response Shape
 
 ```json
 {
   "teams": { ... },
   "settings": { ... },
-  "aggregated_stats": {
-    "teams": {
-      "411.l.12345.t.1": {
-        "team_key": "411.l.12345.t.1",
-        "team_name": "My Team",
-        "stats": {
-          "7":  120,
-          "12": 45,
-          "60": 210
+  "standings": [
+    {
+      "team_key": "411.l.12345.t.1",
+      "team_id": "1",
+      "name": "My Team",
+      "team_standings": {
+        "rank": "1",
+        "outcome_totals": {
+          "wins": "10",
+          "losses": "4",
+          "ties": "0",
+          "percentage": ".714"
         },
-        "weeks_counted": 15
+        "points_for": "850.5",
+        "points_against": "720.0"
       }
-    },
-    "week_range": { "start": 1, "end": 15 }
-  }
+    }
+  ]
 }
 ```
 
@@ -66,146 +64,87 @@ The aggregated result is included in the API response as `aggregated_stats`:
 
 ## Key Functions
 
-### `aggregateWeeklyStats(weeklyStats, teamKey, teamName)`
+### `getLeagueStandings(req, league_key)`
 
 **File:** `utils/yahooData.ts`
 
-Sums the stats from an array of raw `fantasy_content` week objects for a
-single team.
+Fetches `/fantasy/v2/league/{league_key}/standings`, decompresses and parses
+the XML response, then calls `extractStandingsFromLeagueContent` internally.
 
-- Each week's stats are extracted via `extractStatsFromWeekContent()`.
-- Numeric values are summed per `stat_id`.
-- **Stat ID `60` (Innings Pitched):** Yahoo returns this as `"X/Y"` (e.g.
-  `"45/3"`).  Only the numerator (`X`) is used to avoid fractional
-  accumulation errors.
-- Error responses (from failed week fetches) and malformed week entries are
-  **skipped** rather than causing the whole aggregation to fail.
-- Returns `null` if no valid weeks were found.
+- Returns `StandingsTeam[]` on success.
+- Returns an `ErrorResponse` on any HTTP, network, token, or parse failure.
 
-### `getLeagueAggregatedStats(req, leagueTeamsContent, startWeek?, endWeek?)`
+### `extractStandingsFromLeagueContent(fantasyContent)`
 
 **File:** `utils/yahooData.ts`
 
-Orchestrates the full aggregation for all teams in a league:
-
-1. Extracts the team list from `leagueTeamsContent`.
-2. For each team, fetches all weeks in `[startWeek, endWeek]` **in parallel**
-   using `Promise.all`.
-3. Calls `aggregateWeeklyStats` for each team.
-4. Returns a `LeagueAggregatedStats` object.
+Safely extracts the standings teams array from the raw `fantasy_content`
+object. Handles the xml2js `explicitArray: false` quirk (single-team leagues
+return an object instead of an array). Teams missing `team_standings` are
+included with a warning so standings columns can show `"-"`.
 
 ### `/api/leagueinfo/[id]` endpoint
 
 **File:** `pages/api/leagueinfo/[id].ts`
 
-Extended to call `getLeagueAggregatedStats` and include the result in the
-response JSON under the `aggregated_stats` key.  If aggregation fails (e.g.
-due to a Yahoo API error), the endpoint still returns `teams` and `settings`
-so the rest of the page can render — the `aggregated_stats` key is simply
-omitted.
-
----
-
-## Configuring the Week Range
-
-The week range is controlled by two environment variables:
-
-| Variable                        | Default | Description                                      |
-|---------------------------------|---------|--------------------------------------------------|
-| `NEXT_PUBLIC_SEASON_START_WEEK` | `1`     | First week to include in aggregation (inclusive) |
-| `NEXT_PUBLIC_SEASON_END_WEEK`   | `15`    | Last week to include in aggregation (inclusive)  |
-
-Set these in your `.env.local` (development) or in your hosting provider's
-environment configuration (production):
-
-```dotenv
-# .env.local
-NEXT_PUBLIC_SEASON_START_WEEK=1
-NEXT_PUBLIC_SEASON_END_WEEK=15
-```
-
-The values are parsed at **module load time** in `utils/yahooData.ts` and
-exported as `SEASON_START_WEEK` and `SEASON_END_WEEK`.  Invalid or missing
-values fall back to the defaults.
-
-### Changing the season length
-
-If your league runs for a different number of weeks (e.g. 20 weeks), simply
-update `NEXT_PUBLIC_SEASON_END_WEEK`:
-
-```dotenv
-NEXT_PUBLIC_SEASON_END_WEEK=20
-```
-
-You can also pass `startWeek` and `endWeek` directly to
-`getLeagueAggregatedStats` if you need programmatic control:
-
-```typescript
-const stats = await getLeagueAggregatedStats(req, leagueTeamsContent, 3, 12);
-```
-
----
-
-## Performance Considerations
-
-- **Parallel fetching per team:** All week requests for a single team are
-  issued in parallel via `Promise.all`, reducing latency significantly
-  compared to sequential fetching.
-- **Sequential across teams:** Teams are processed sequentially to avoid
-  overwhelming the Yahoo API with too many simultaneous connections.
-- **Graceful degradation:** A failed week or team does not abort the entire
-  aggregation — it is skipped and logged.
-
-For a league with 10 teams and 15 weeks, the endpoint issues up to
-`10 × 15 = 150` requests to the Yahoo API (15 in parallel per team).
-If Yahoo rate-limits the application, consider reducing the parallelism or
-adding a caching layer.
-
----
-
-## Testing
-
-Unit tests for the aggregation logic live in:
-
-```
-__tests__/weeklyAggregation.test.ts
-```
-
-They cover:
-
-- Correct summation across 1, 3, and 15 weeks
-- Handling of the `stat_id "60"` IP format
-- Skipping of error responses and malformed week entries
-- Accumulation of stats that appear in only some weeks
-- Default values for `SEASON_START_WEEK` and `SEASON_END_WEEK`
-
-Run the tests with:
-
-```bash
-yarn test
-```
+Fetches teams, settings, and standings in parallel. Standings are non-fatal —
+if `getLeagueStandings` returns an error the endpoint still responds with
+`teams` and `settings` so the rest of the page can render.
 
 ---
 
 ## Data Types
 
-The following TypeScript types are exported from `utils/yahooData.ts`:
-
 ```typescript
-/** Aggregated stats for a single team across all weeks. */
-interface AggregatedTeamStats {
-  team_key: string;
-  team_name: string;
-  stats: Record<string, number>; // keyed by stat_id
-  weeks_counted: number;
+/** Win/loss/tie record and scoring totals for a single team. */
+interface StandingsTeamRecord {
+  rank: string;
+  outcome_totals: {
+    wins: string;
+    losses: string;
+    ties: string;
+    percentage: string;
+  };
+  points_for: string;
+  points_against: string;
+  playoff_seed?: string;
 }
 
-/** Aggregated stats for all teams in a league. */
-interface LeagueAggregatedStats {
-  teams: Record<string, AggregatedTeamStats>; // keyed by team_key
-  week_range: {
-    start: number;
-    end: number;
-  };
+/** A single team entry in the standings response. */
+interface StandingsTeam {
+  team_key: string;
+  team_id: string;
+  name: string;
+  team_standings: StandingsTeamRecord;
 }
 ```
+
+---
+
+## Migration from Multi-Week Aggregation
+
+Prior to this change the application used a `getLeagueAggregatedStats` function
+that issued up to `teams × weeks` requests to the Yahoo API (e.g. 150 requests
+for 10 teams × 15 weeks) and summed each stat manually. This approach was
+replaced with a single `/standings` call because:
+
+- The `/standings` endpoint already contains the authoritative rank, W/L/T
+  record, and points totals — no aggregation is needed.
+- A single request is dramatically faster and less likely to hit Yahoo rate
+  limits.
+- The response structure is simpler and easier to maintain.
+
+### Removed items
+
+| Item | File | Status |
+|------|------|--------|
+| `getLeagueAggregatedStats` | `utils/yahooData.ts` | Deprecated (kept for backwards compatibility) |
+| `aggregateWeeklyStats` | `utils/yahooData.ts` | Retained (used by `getWeeklyStats`) |
+| `SEASON_START_WEEK` | `utils/yahooData.ts` | Deprecated (kept for backwards compatibility) |
+| `SEASON_END_WEEK` | `utils/yahooData.ts` | Deprecated (kept for backwards compatibility) |
+| `aggregated_stats` response key | `pages/api/leagueinfo/[id].ts` | Removed |
+| `NEXT_PUBLIC_SEASON_START_WEEK` env var | `.env.example` | Removed |
+| `NEXT_PUBLIC_SEASON_END_WEEK` env var | `.env.example` | Removed |
+
+If you have `NEXT_PUBLIC_SEASON_START_WEEK` or `NEXT_PUBLIC_SEASON_END_WEEK`
+set in your `.env.local` or hosting environment, they can safely be removed.
