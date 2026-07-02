@@ -71,6 +71,54 @@ export const extractTeamsFromLeagueContent = (
   return Array.isArray(teamField) ? teamField : [teamField];
 };
 
+// ─── Standings types ─────────────────────────────────────────────────────────
+
+/**
+ * Win/loss/tie record and scoring totals for a single team in the standings.
+ */
+export interface StandingsTeamRecord {
+  /** Overall rank in the league (1 = first place). */
+  rank: string;
+  outcome_totals: {
+    wins: string;
+    losses: string;
+    ties: string;
+    percentage: string;
+  };
+  /** Total fantasy points scored by this team. */
+  points_for: string;
+  /** Total fantasy points scored against this team. */
+  points_against: string;
+  /** Playoff seed (may be absent for in-progress seasons). */
+  playoff_seed?: string;
+}
+
+/**
+ * A single team entry as returned inside the standings response.
+ */
+export interface StandingsTeam {
+  team_key: string;
+  team_id: string;
+  name: string;
+  team_standings: StandingsTeamRecord;
+}
+
+/**
+ * The parsed `fantasy_content` shape returned by the /standings endpoint.
+ */
+export interface LeagueStandingsContent {
+  league?: {
+    league_key?: string;
+    league_id?: string;
+    name?: string;
+    /** "1" when the season is finished, "0" (or absent) otherwise. */
+    is_finished?: string;
+    teams?: {
+      team?: StandingsTeam | StandingsTeam[];
+    };
+  };
+}
+
 // ─── Stat-category types ────────────────────────────────────────────────────
 
 export interface StatCategory {
@@ -780,6 +828,158 @@ export const getLeagueSettings = async (
       }
     })();
   });
+};
+
+/**
+ * Fetches the league standings from the Yahoo Fantasy API.
+ * Calls `/fantasy/v2/league/{league_key}/standings`.
+ * Modelled after `getLeagueTeams` — handles gzip decompression, XML parsing,
+ * HTTP/network/token errors, and resolves with the raw `fantasy_content`.
+ *
+ * @param req - The Next.js API request (needed for auth token extraction)
+ * @param league_key - The Yahoo league key (e.g. "411.l.12345")
+ * @returns The raw fantasy_content object, or an ErrorResponse on failure
+ */
+export const getLeagueStandings = async (
+  req: NextApiRequest,
+  league_key: string | string[]
+): Promise<unknown> => {
+  return new Promise((resolve) => {
+    (async () => {
+      try {
+        let league: unknown = {};
+        const token = await getToken({ req, secret });
+
+        // Validate token before making request
+        if (!validateToken(token)) {
+          const errorMsg = 'Invalid or missing authentication token';
+          console.error(`[yahooData] getLeagueStandings: ${errorMsg}`);
+          resolve({ error: errorMsg, statusCode: 401 });
+          return;
+        }
+
+        const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
+        const options = {
+          hostname: 'fantasysports.yahooapis.com',
+          port: 443,
+          path: `/fantasy/v2/league/${leagueKeyStr}/standings`,
+          method: 'GET',
+          headers: {
+            Accept: '*/*',
+            'accept-encoding': 'gzip,deflate',
+            Authorization: `Bearer ${token?.accessToken}`,
+          },
+        };
+
+        const request = https.request(options, (response) => {
+          const chunks: Buffer[] = [];
+
+          // Check HTTP status code
+          if (response.statusCode && response.statusCode >= 400) {
+            console.error(
+              `[yahooData] getLeagueStandings HTTP Error: ${response.statusCode} - ${response.statusMessage}`
+            );
+            const newError: ErrorResponse = {
+              error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
+              statusCode: response.statusCode,
+            };
+            resolve(newError);
+            return;
+          }
+
+          response.on('data', (chunk) => {
+            chunks.push(chunk);
+          });
+
+          response.on('end', function () {
+            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
+              if (err) {
+                console.error(`[yahooData] getLeagueStandings Decompression error: ${err}`);
+                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+                resolve(newError);
+                return;
+              }
+              parser.parseString(dezipped.toString(), function (parseErr, result) {
+                if (parseErr) {
+                  console.error(`[yahooData] getLeagueStandings XML parsing error: ${parseErr}`);
+                  const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
+                  resolve(newError);
+                  return;
+                }
+                league = (result as Record<string, unknown>).fantasy_content;
+                resolve(league);
+              });
+            });
+          });
+        });
+
+        request.on('error', (error) => {
+          console.error(`[yahooData] getLeagueStandings Network error: ${error.message}`);
+          const newError: ErrorResponse = {
+            error: `Network error on Get Request: ${error.message}`,
+          };
+          resolve(newError);
+        });
+
+        request.end();
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`[yahooData] Exception in getLeagueStandings: ${errorMsg}`);
+        resolve({ error: `Exception in getLeagueStandings: ${errorMsg}` });
+      }
+    })();
+  });
+};
+
+/**
+ * Safely extracts the standings teams array from the league standings
+ * fantasy_content response.
+ * Handles both single-team and multi-team responses (xml2js with
+ * explicitArray: false returns a single object instead of an array when
+ * there is only one element).
+ *
+ * @param fantasyContent - The fantasy_content object from the Yahoo standings API response
+ * @returns An array of StandingsTeam objects, or null if the structure is invalid
+ */
+export const extractStandingsFromLeagueContent = (
+  fantasyContent: unknown
+): StandingsTeam[] | null => {
+  if (!fantasyContent || typeof fantasyContent !== 'object') {
+    console.error(
+      '[yahooData] extractStandingsFromLeagueContent: fantasyContent is null or not an object'
+    );
+    return null;
+  }
+
+  const content = fantasyContent as LeagueStandingsContent;
+  const league = content.league;
+
+  if (!league) {
+    console.error(
+      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content'
+    );
+    return null;
+  }
+
+  const teamsContainer = league.teams;
+  if (!teamsContainer) {
+    console.error(
+      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing'
+    );
+    return null;
+  }
+
+  const teamField = teamsContainer.team;
+  if (!teamField) {
+    console.error(
+      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing'
+    );
+    return null;
+  }
+
+  // xml2js with explicitArray: false returns a single object when there is only one team
+  return Array.isArray(teamField) ? teamField : [teamField];
 };
 
 export const getWeeklyStats = async (req: NextApiRequest, team_key: string | string[]): Promise<unknown[]> => {
