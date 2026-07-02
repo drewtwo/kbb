@@ -9,6 +9,7 @@ import {
   StatCategory,
   StatEntry,
 } from '../../../../utils/yahooData';
+import styles from './teamstats.module.css';
 
 const StatCard = dynamic(() => import('../../../../components/statcard'), {
   ssr: false,
@@ -276,7 +277,7 @@ const Team = () => {
   return (
     <Layout>
       <p>League Stats</p>
-      <div>
+      <div className={styles.statsGrid}>
         {statCategories.map((stat: StatCategory) => (
           <div key={stat.stat_id}>
             <StatCard

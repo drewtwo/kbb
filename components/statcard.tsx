@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import styles from './statcard.module.css';
 
 ChartJS.register(
   CategoryScale,
@@ -66,21 +67,41 @@ const StatCard = ({
   deltaDirection: _deltaDirection,
   currentValue: _currentValue,
   chartData,
-}: StatCardProps) => (
-  <div>
-    <Line
-      datasetIdKey="test"
-      data={{
-        labels: generateLabels(chartData),
-        datasets: [
-          {
-            label: name,
-            data: chartData,
-          },
-        ],
-      }}
-    />
-  </div>
+}: StatCardProps) => {
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
+
+  return (
+    <div className={styles.cardContainer}>
+      <div className={styles.chartContainer}>
+        <Line
+          datasetIdKey="test"
+          data={{
+            labels: generateLabels(chartData),
+            datasets: [
+              {
+                label: name,
+                data: chartData,
+              },
+            ],
+          }}
+          options={chartOptions}
+        />
+      </div>
+    </div>
+  );
   // <CryptoCard
   //   currencyName={name}
   //   currencyPrice={currentValue}
@@ -90,6 +111,6 @@ const StatCard = ({
   //   chartColor={'green'}
   //   chartData={chartData}
   // />
-);
+};
 
 export default StatCard;
