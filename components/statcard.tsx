@@ -75,6 +75,17 @@ const StatCard = ({
       legend: {
         display: false,
       },
+      title: {
+        display: true,
+        text: name,
+        font: {
+          size: 14,
+          weight: 'bold' as const,
+        },
+        padding: {
+          bottom: 10,
+        },
+      },
     },
     scales: {
       y: {

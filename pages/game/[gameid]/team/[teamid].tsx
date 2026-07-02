@@ -64,6 +64,7 @@ export function generateChartData(
     !Array.isArray(weekly_stats_data.stats_by_week) ||
     weekly_stats_data.stats_by_week.length === 0
   ) {
+    console.warn(`[generateChartData] No weekly stats data for stat_id: ${stat_id}`);
     return [];
   }
 
@@ -74,6 +75,7 @@ export function generateChartData(
     }
   );
 
+  console.log(`[generateChartData] stat_id: ${stat_id}, dataset length: ${dataset.length}, data:`, dataset);
   return dataset.reverse();
 }
 
@@ -137,15 +139,20 @@ export function generateCurrentValue(
 function normaliseWeeklyStats(
   raw: WeeklyStatsApiResponse | null | undefined
 ): NormalisedWeeklyStatsData | null {
-  if (!raw) return null;
+  if (!raw) {
+    console.error('[normaliseWeeklyStats] Raw data is null or undefined');
+    return null;
+  }
   if (raw.error) {
-    console.error('[Team page] Weekly stats API returned error:', raw.error);
+    console.error('[normaliseWeeklyStats] Weekly stats API returned error:', raw.error);
     return null;
   }
   if (!Array.isArray(raw.stats_by_week) || raw.stats_by_week.length === 0) {
-    console.error('[Team page] Weekly stats API: stats_by_week is missing or empty');
+    console.error('[normaliseWeeklyStats] Weekly stats API: stats_by_week is missing or empty');
     return null;
   }
+
+  console.log(`[normaliseWeeklyStats] Processing ${raw.stats_by_week.length} weeks of data`);
 
   const normalisedWeeks: NormalisedWeekStats[] = [];
 
@@ -153,17 +160,18 @@ function normaliseWeeklyStats(
     const stats = extractStatsFromWeekContent(weekContent);
     if (!stats) {
       // Skip weeks with malformed data rather than crashing
-      console.warn('[Team page] Skipping malformed week entry in stats_by_week');
+      console.warn('[normaliseWeeklyStats] Skipping malformed week entry in stats_by_week');
       continue;
     }
     normalisedWeeks.push({ stats });
   }
 
   if (normalisedWeeks.length === 0) {
-    console.error('[Team page] No valid week entries found in stats_by_week');
+    console.error('[normaliseWeeklyStats] No valid week entries found in stats_by_week');
     return null;
   }
 
+  console.log(`[normaliseWeeklyStats] Successfully normalised ${normalisedWeeks.length} weeks`);
   return { stats_by_week: normalisedWeeks };
 }
 
@@ -189,6 +197,7 @@ const Team = () => {
 
   // ── Network / SWR errors ──────────────────────────────────────────────────
   if (stats_response.error) {
+    console.error('[Team page] Network error loading league info:', stats_response.error);
     return (
       <Layout>
         <ErrorDisplay
@@ -200,6 +209,7 @@ const Team = () => {
   }
 
   if (weekly_stat_response.error) {
+    console.error('[Team page] Network error loading team stats:', weekly_stat_response.error);
     return (
       <Layout>
         <ErrorDisplay
@@ -212,6 +222,7 @@ const Team = () => {
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (!stats_response.data || !weekly_stat_response.data) {
+    console.log('[Team page] Loading... stats_response.data:', !!stats_response.data, 'weekly_stat_response.data:', !!weekly_stat_response.data);
     return (
       <Layout>
         <div>Loading...</div>
@@ -221,6 +232,7 @@ const Team = () => {
 
   // ── API-level errors returned in the JSON body ────────────────────────────
   if (stats_response.data.error) {
+    console.error('[Team page] League info API error:', stats_response.data.error);
     return (
       <Layout>
         <ErrorDisplay
@@ -232,6 +244,7 @@ const Team = () => {
   }
 
   if (weekly_stat_response.data.error) {
+    console.error('[Team page] Team stats API error:', weekly_stat_response.data.error);
     return (
       <Layout>
         <ErrorDisplay
@@ -247,6 +260,7 @@ const Team = () => {
     extractStatCategoriesFromLeagueSettings(stats_response.data.settings);
 
   if (!statCategories) {
+    console.error('[Team page] Could not extract stat categories from league settings');
     return (
       <Layout>
         <ErrorDisplay
@@ -257,12 +271,15 @@ const Team = () => {
     );
   }
 
+  console.log(`[Team page] Extracted ${statCategories.length} stat categories:`, statCategories.map(s => ({ id: s.stat_id, name: s.name })));
+
   // ── Normalise weekly stats ────────────────────────────────────────────────
   const weeklyStatsData: NormalisedWeeklyStatsData | null = normaliseWeeklyStats(
     weekly_stat_response.data
   );
 
   if (!weeklyStatsData) {
+    console.error('[Team page] Failed to normalise weekly stats data');
     return (
       <Layout>
         <ErrorDisplay
@@ -273,25 +290,31 @@ const Team = () => {
     );
   }
 
+  console.log(`[Team page] Successfully loaded ${weeklyStatsData.stats_by_week.length} weeks of stats`);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Layout>
       <p>League Stats</p>
       <div className={styles.statsGrid}>
-        {statCategories.map((stat: StatCategory) => (
-          <div key={stat.stat_id}>
-            <StatCard
-              name={stat.name}
-              shortName={stat.display_name}
-              delta={generateDelta(stat.stat_id, weeklyStatsData)}
-              deltaDirection={
-                Number(generateDelta(stat.stat_id, weeklyStatsData)) > 0 ? 1 : -1
-              }
-              currentValue={generateCurrentValue(stat.stat_id, weeklyStatsData)}
-              chartData={generateChartData(stat.stat_id, weeklyStatsData)}
-            />
-          </div>
-        ))}
+        {statCategories.map((stat: StatCategory) => {
+          const chartData = generateChartData(stat.stat_id, weeklyStatsData);
+          console.log(`[Team page] Rendering stat: ${stat.name} (${stat.stat_id}) with ${chartData.length} data points`);
+          return (
+            <div key={stat.stat_id}>
+              <StatCard
+                name={stat.name}
+                shortName={stat.display_name}
+                delta={generateDelta(stat.stat_id, weeklyStatsData)}
+                deltaDirection={
+                  Number(generateDelta(stat.stat_id, weeklyStatsData)) > 0 ? 1 : -1
+                }
+                currentValue={generateCurrentValue(stat.stat_id, weeklyStatsData)}
+                chartData={chartData}
+              />
+            </div>
+          );
+        })}
       </div>
     </Layout>
   );
