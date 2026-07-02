@@ -103,7 +103,7 @@ export const logDiagnosticDump = (
   try {
     const jsonStr = JSON.stringify(obj, null, 2);
     console.log(`${prefix} ${label}:\n${jsonStr}`);
-  } catch (err) {
+  } catch (_err) {
     console.log(`${prefix} ${label}: [Unable to serialize to JSON]`, obj);
   }
 };

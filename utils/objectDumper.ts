@@ -125,7 +125,7 @@ export const dumpObject = (obj: unknown, options: DumpOptions = {}): string => {
 export const dumpObjectAsJson = (obj: unknown, indent: number = 2): string => {
   try {
     return JSON.stringify(obj, null, indent);
-  } catch (err) {
+  } catch (_err) {
     // Fallback to safe dump if JSON serialization fails (e.g., circular references)
     return dumpObject(obj, { maxDepth: 5 });
   }
