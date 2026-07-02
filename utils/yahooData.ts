@@ -831,23 +831,25 @@ export const getLeagueSettings = async (
 };
 
 /**
- * Fetches the league standings from the Yahoo Fantasy API.
- * Calls `/fantasy/v2/league/{league_key}/standings`.
- * Modelled after `getLeagueTeams` — handles gzip decompression, XML parsing,
- * HTTP/network/token errors, and resolves with the raw `fantasy_content`.
+ * Fetches the league standings from the Yahoo Fantasy API and returns the
+ * extracted teams array directly.
+ *
+ * Calls `/fantasy/v2/league/{league_key}/standings`, handles gzip
+ * decompression, XML parsing, HTTP/network/token errors, then internally
+ * calls `extractStandingsFromLeagueContent` so callers receive a ready-to-use
+ * `StandingsTeam[]` without needing to perform any further extraction.
  *
  * @param req - The Next.js API request (needed for auth token extraction)
  * @param league_key - The Yahoo league key (e.g. "411.l.12345")
- * @returns The raw fantasy_content object, or an ErrorResponse on failure
+ * @returns An array of StandingsTeam objects, or an ErrorResponse on failure
  */
 export const getLeagueStandings = async (
   req: NextApiRequest,
   league_key: string | string[]
-): Promise<unknown> => {
+): Promise<StandingsTeam[] | ErrorResponse> => {
   return new Promise((resolve) => {
     (async () => {
       try {
-        let league: unknown = {};
         const token = await getToken({ req, secret });
 
         // Validate token before making request
@@ -907,8 +909,16 @@ export const getLeagueStandings = async (
                   resolve(newError);
                   return;
                 }
-                league = (result as Record<string, unknown>).fantasy_content;
-                resolve(league);
+                const fantasyContent = (result as Record<string, unknown>).fantasy_content;
+                const teams = extractStandingsFromLeagueContent(fantasyContent);
+                if (!teams) {
+                  const newError: ErrorResponse = {
+                    error: 'Failed to extract standings teams from API response',
+                  };
+                  resolve(newError);
+                  return;
+                }
+                resolve(teams);
               });
             });
           });
