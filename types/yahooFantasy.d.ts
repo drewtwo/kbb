@@ -78,3 +78,19 @@ export interface YahooFantasyContent {
     team_stats: YahooWeekStats;
   };
 }
+
+/**
+ * Extracted games response from getTeams
+ * This is the transformed response after extracting from nested fantasy_content structure
+ */
+export interface ExtractedGamesResponse {
+  games: YahooGame[];
+}
+
+/**
+ * Error response from API
+ */
+export interface ApiErrorResponse {
+  error: string;
+  statusCode?: number;
+}

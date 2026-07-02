@@ -93,7 +93,26 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
                   resolve(newError);
                   return;
                 }
-                games = (result as Record<string, unknown>).fantasy_content;
+                const fantasyContent = (result as Record<string, unknown>).fantasy_content;
+                
+                // Extract games array from nested fantasy_content structure
+                if (fantasyContent && typeof fantasyContent === 'object') {
+                  const users = (fantasyContent as Record<string, unknown>).users;
+                  if (users && typeof users === 'object') {
+                    const user = (users as Record<string, unknown>).user;
+                    if (user && typeof user === 'object') {
+                      const userGames = (user as Record<string, unknown>).games;
+                      if (userGames && typeof userGames === 'object') {
+                        const gameData = (userGames as Record<string, unknown>).game;
+                        if (gameData) {
+                          // Ensure games is always an array
+                          games = Array.isArray(gameData) ? gameData : [gameData];
+                        }
+                      }
+                    }
+                  }
+                }
+                
                 resolve(games);
               });
             });
