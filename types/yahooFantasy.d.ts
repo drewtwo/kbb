@@ -29,8 +29,12 @@ export interface YahooGame {
 
 export interface YahooLeagueTeams {
   league: {
+    league_key?: string;
+    league_id?: string;
+    name?: string;
     teams: {
-      team: YahooTeam[];
+      /** xml2js with explicitArray:false may return a single object or an array */
+      team: YahooTeam | YahooTeam[];
     };
   };
 }
@@ -80,8 +84,19 @@ export interface YahooFantasyContent {
 }
 
 /**
- * Extracted games response from getTeams
- * This is the transformed response after extracting from nested fantasy_content structure
+ * Response shape returned by /api/gameinfo/[gameid].
+ * `teams` is the raw fantasy_content from getLeagueTeams, which has the
+ * structure: { league: { teams: { team: YahooTeam | YahooTeam[] } } }
+ */
+export interface GameInfoApiResponse {
+  error?: string;
+  teams?: YahooLeagueTeams;
+}
+
+/**
+ * Extracted games response from getTeams.
+ * This is the transformed response after extracting from the nested
+ * fantasy_content structure.
  */
 export interface ExtractedGamesResponse {
   games: YahooGame[];
