@@ -56,7 +56,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         });
 
         request.end();
-      } catch (err) {
+      } catch (_err) {
         resolve({ error: 'failed to load data' });
       }
     })();
@@ -109,7 +109,7 @@ export const getLeagueTeams = async (
         });
 
         request.end();
-      } catch (err) {
+      } catch (_err) {
         resolve({ error: 'failed to load data' });
       }
     })();
@@ -162,7 +162,7 @@ export const getLeagueSettings = async (
         });
 
         request.end();
-      } catch (err) {
+      } catch (_err) {
         resolve({ error: 'failed to load data' });
       }
     })();
@@ -227,7 +227,7 @@ export const getWeekStats = async (
         });
 
         request.end();
-      } catch (err) {
+      } catch (_err) {
         resolve({ error: 'failed to load data' });
       }
     })();
