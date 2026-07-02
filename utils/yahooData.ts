@@ -908,6 +908,17 @@ export const getLeagueStandings = async (
                   return;
                 }
                 league = (result as Record<string, unknown>).fantasy_content;
+                // Log the raw fantasy_content structure to diagnose response shape issues
+                console.log(
+                  '[yahooData] getLeagueStandings: raw fantasy_content top-level keys =',
+                  league && typeof league === 'object'
+                    ? Object.keys(league as Record<string, unknown>)
+                    : league
+                );
+                console.log(
+                  '[yahooData] getLeagueStandings: raw fantasy_content (truncated) =',
+                  JSON.stringify(league, null, 2).slice(0, 3000)
+                );
                 resolve(league);
               });
             });
@@ -952,34 +963,132 @@ export const extractStandingsFromLeagueContent = (
     return null;
   }
 
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: top-level keys =',
+    Object.keys(fantasyContent as Record<string, unknown>)
+  );
+
   const content = fantasyContent as LeagueStandingsContent;
   const league = content.league;
 
   if (!league) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content'
+      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content. ' +
+        'Full fantasyContent structure: ' +
+        JSON.stringify(fantasyContent, null, 2).slice(0, 2000)
     );
     return null;
   }
+
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: league keys =',
+    Object.keys(league as Record<string, unknown>)
+  );
 
   const teamsContainer = league.teams;
   if (!teamsContainer) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing'
+      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing. ' +
+        'league keys present: ' +
+        Object.keys(league as Record<string, unknown>).join(', ')
     );
     return null;
   }
 
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: teamsContainer keys =',
+    Object.keys(teamsContainer as Record<string, unknown>)
+  );
+
   const teamField = teamsContainer.team;
   if (!teamField) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing'
+      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing. ' +
+        'teamsContainer keys present: ' +
+        Object.keys(teamsContainer as Record<string, unknown>).join(', ')
     );
     return null;
   }
 
   // xml2js with explicitArray: false returns a single object when there is only one team
-  return Array.isArray(teamField) ? teamField : [teamField];
+  const rawTeams: StandingsTeam[] = Array.isArray(teamField) ? teamField : [teamField];
+
+  console.log(
+    `[yahooData] extractStandingsFromLeagueContent: found ${rawTeams.length} team(s) before standings normalisation`
+  );
+
+  // Normalise each team entry: the Yahoo /standings endpoint sometimes returns
+  // team_standings as a nested object under a different key path, or the
+  // team_standings object may be missing entirely.  We apply defensive defaults
+  // so that downstream consumers always receive a well-formed StandingsTeamRecord.
+  const normalisedTeams: StandingsTeam[] = rawTeams.map(
+    (team: StandingsTeam, idx: number): StandingsTeam => {
+      const rawTeamObj = team as unknown as Record<string, unknown>;
+
+      // Log the raw team shape to aid diagnosis
+      console.log(
+        `[yahooData] extractStandingsFromLeagueContent: team[${idx}] keys =`,
+        Object.keys(rawTeamObj)
+      );
+
+      // If team_standings is already present and well-formed, use it as-is
+      if (team.team_standings && typeof team.team_standings === 'object') {
+        const ts = team.team_standings as unknown as Record<string, unknown>;
+        console.log(
+          `[yahooData] extractStandingsFromLeagueContent: team[${idx}].team_standings keys =`,
+          Object.keys(ts)
+        );
+        return team;
+      }
+
+      // Fallback: attempt to locate team_standings under alternative keys that
+      // xml2js may produce depending on the API version / league type.
+      const alternativeKeys: string[] = ['team_standings', 'standings'];
+      let resolvedStandings: StandingsTeamRecord | undefined;
+
+      for (const key of alternativeKeys) {
+        const candidate = rawTeamObj[key];
+        if (candidate && typeof candidate === 'object') {
+          console.warn(
+            `[yahooData] extractStandingsFromLeagueContent: team[${idx}] — found standings under alternative key "${key}"`
+          );
+          resolvedStandings = candidate as StandingsTeamRecord;
+          break;
+        }
+      }
+
+      if (!resolvedStandings) {
+        console.warn(
+          `[yahooData] extractStandingsFromLeagueContent: team[${idx}] (${team.name ?? 'unknown'}) ` +
+            'has no team_standings — using empty defaults. Raw team: ' +
+            JSON.stringify(team, null, 2).slice(0, 500)
+        );
+        // Provide safe defaults so the UI can still render without crashing
+        resolvedStandings = {
+          rank: '-',
+          outcome_totals: {
+            wins: '-',
+            losses: '-',
+            ties: '-',
+            percentage: '-',
+          },
+          points_for: '-',
+          points_against: '-',
+        };
+      }
+
+      return {
+        ...team,
+        team_standings: resolvedStandings,
+      };
+    }
+  );
+
+  console.log(
+    `[yahooData] extractStandingsFromLeagueContent: returning ${normalisedTeams.length} normalised team(s)`
+  );
+
+  return normalisedTeams;
 };
 
 export const getWeeklyStats = async (req: NextApiRequest, team_key: string | string[]): Promise<unknown[]> => {
