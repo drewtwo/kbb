@@ -1,5 +1,7 @@
 import NextAuth from 'next-auth';
 import type { OAuthConfig } from 'next-auth/providers/oauth';
+import type { JWT } from 'next-auth/jwt';
+import type { Session } from 'next-auth';
 import { getYahooCallbackUrl } from '../../../lib/get-callback-url';
 
 interface YahooProfile {
@@ -118,11 +120,30 @@ export default NextAuth({
       else if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
     },
-    // async session({ session, token, user }) { return session },
-    async jwt({ token, account }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
+      // Hydrate session with user profile data and tokens from JWT
+      if (session.user) {
+        if (token.sub) session.user.id = token.sub as string;
+        if (token.name && typeof token.name === 'string') session.user.name = token.name;
+        if (token.email && typeof token.email === 'string') session.user.email = token.email;
+        if (token.picture && typeof token.picture === 'string') session.user.image = token.picture;
+      }
+      session.accessToken = token.accessToken as string | undefined;
+      session.refreshToken = token.refreshToken as string | undefined;
+      return session;
+    },
+    async jwt({ token, account, user }) {
+      // Preserve user profile information when storing tokens
       if (account) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
+      }
+      // Store user profile data from the user object (available on sign-in)
+      if (user) {
+        token.sub = user.id;
+        if (user.name) token.name = user.name;
+        if (user.email) token.email = user.email;
+        if (user.image) token.picture = user.image;
       }
       return token;
     },

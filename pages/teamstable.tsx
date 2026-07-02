@@ -31,10 +31,11 @@ interface Game {
 
 interface ErrorResponse {
   error?: string;
+  statusCode?: number;
 }
 
 export default function Index() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const { data, error } = useSwr(status === 'authenticated' ? '/api/teams' : null, fetcher);
 
   // Check authentication status
@@ -58,7 +59,32 @@ export default function Index() {
     );
   }
 
+  // Validate session has required data
+  if (status === 'authenticated' && !session?.user) {
+    console.error('[teamstable] Session authenticated but user data missing');
+    return (
+      <Layout>
+        <div className={leagueStyles.errorContainer}>
+          <p className={leagueStyles.errorText}>Session error: User data not available. Please sign in again.</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Validate session has access token
+  if (status === 'authenticated' && !session?.accessToken) {
+    console.error('[teamstable] Session authenticated but accessToken missing');
+    return (
+      <Layout>
+        <div className={leagueStyles.errorContainer}>
+          <p className={leagueStyles.errorText}>Authentication error: Access token not available. Please sign in again.</p>
+        </div>
+      </Layout>
+    );
+  }
+
   if (error) {
+    console.error('[teamstable] Failed to load leagues:', error);
     return (
       <Layout>
         <div className={leagueStyles.errorContainer}>
@@ -81,6 +107,21 @@ export default function Index() {
   // Check if data contains an error response
   if (data && typeof data === 'object' && 'error' in data) {
     const errorData = data as ErrorResponse;
+    console.error('[teamstable] API returned error:', errorData);
+    
+    // Handle 401 Unauthorized - token issue
+    if (errorData.statusCode === 401) {
+      return (
+        <Layout>
+          <div className={leagueStyles.errorContainer}>
+            <p className={leagueStyles.errorText}>
+              Authentication error: Your session has expired. Please sign in again.
+            </p>
+          </div>
+        </Layout>
+      );
+    }
+    
     return (
       <Layout>
         <div className={leagueStyles.errorContainer}>
