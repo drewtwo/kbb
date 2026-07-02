@@ -13,6 +13,19 @@ interface StandingsTableProps {
 }
 
 /**
+ * Returns true when the team_standings object is present and has at least the
+ * minimum required shape (rank + outcome_totals).  Used as a runtime guard so
+ * that the table never crashes when the API returns a team without standings.
+ */
+const hasValidStandings = (team: StandingsTeam): boolean => {
+  return (
+    team.team_standings !== null &&
+    team.team_standings !== undefined &&
+    typeof team.team_standings === 'object'
+  );
+};
+
+/**
  * Renders a full league standings table.
  *
  * Columns: Rank | Team Name | W | L | T | Pts For | Pts Against | Playoff Seed
@@ -22,7 +35,9 @@ interface StandingsTableProps {
  */
 const StandingsTable: React.FC<StandingsTableProps> = ({ gameId, standings, isFinished }) => {
   const winner: StandingsTeam | undefined = isFinished
-    ? standings.find((t: StandingsTeam) => t.team_standings?.rank === '1')
+    ? standings.find(
+        (t: StandingsTeam) => hasValidStandings(t) && t.team_standings?.rank === '1'
+      )
     : undefined;
 
   return (
@@ -50,7 +65,10 @@ const StandingsTable: React.FC<StandingsTableProps> = ({ gameId, standings, isFi
         </thead>
         <tbody>
           {standings.map((team: StandingsTeam) => {
-            const record = team.team_standings;
+            // Defensively guard against missing team_standings at runtime —
+            // the normalisation in extractStandingsFromLeagueContent should
+            // always provide defaults, but we add a second layer of safety here.
+            const record = hasValidStandings(team) ? team.team_standings : null;
             const wins: string = record?.outcome_totals?.wins ?? '-';
             const losses: string = record?.outcome_totals?.losses ?? '-';
             const ties: string = record?.outcome_totals?.ties ?? '-';
