@@ -7,9 +7,9 @@ import './styles.css';
 // Use the <SessionProvider> to improve performance and allow components that call
 // `useSession()` anywhere in your application to access the `session` object.
 export default function App({ Component, pageProps }: AppProps) {
-  return React.createElement(
-    SessionProvider as React.ComponentType<SessionProviderProps>,
-    { session: pageProps.session },
-    React.createElement(Component, pageProps)
+  return (
+    <SessionProvider session={pageProps.session as any}>
+      <Component {...pageProps} />
+    </SessionProvider>
   );
 }
