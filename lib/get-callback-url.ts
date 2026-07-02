@@ -22,14 +22,20 @@ const YAHOO_CALLBACK_PATH: string = '/api/auth/callback/yahoo';
  */
 function resolveBaseUrl(): string {
   if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
+    const url = process.env.NEXTAUTH_URL.replace(/\/$/, '');
+    console.debug('[getYahooCallbackUrl] Using NEXTAUTH_URL:', url);
+    return url;
   }
 
   if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
+    const url = `https://${process.env.VERCEL_URL}`;
+    console.debug('[getYahooCallbackUrl] Using VERCEL_URL:', url);
+    return url;
   }
 
-  return 'http://localhost:3000';
+  const fallbackUrl = 'http://localhost:3000';
+  console.debug('[getYahooCallbackUrl] Using fallback localhost URL:', fallbackUrl);
+  return fallbackUrl;
 }
 
 /**
@@ -56,5 +62,7 @@ function resolveBaseUrl(): string {
  */
 export function getYahooCallbackUrl(): string {
   const baseUrl: string = resolveBaseUrl();
-  return `${baseUrl}${YAHOO_CALLBACK_PATH}`;
+  const callbackUrl: string = `${baseUrl}${YAHOO_CALLBACK_PATH}`;
+  console.debug('[getYahooCallbackUrl] Generated callback URL:', callbackUrl);
+  return callbackUrl;
 }
