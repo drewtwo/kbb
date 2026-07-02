@@ -12,6 +12,7 @@ const parser = new xml2js.Parser(parserOptions);
 
 interface ErrorResponse {
   error: string;
+  statusCode?: number;
 }
 
 export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
@@ -34,14 +35,38 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
+          
+          // Check HTTP status code
+          if (response.statusCode && response.statusCode >= 400) {
+            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            const newError: ErrorResponse = { 
+              error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
+              statusCode: response.statusCode
+            };
+            resolve(newError);
+            return;
+          }
+          
           response.on('data', (chunk) => {
             chunks.push(chunk);
           });
 
           response.on('end', function () {
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
-              parser.parseString(dezipped.toString(), function (_err, result) {
+            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
+              if (err) {
+                console.error(`Decompression error: ${err}`);
+                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+                resolve(newError);
+                return;
+              }
+              parser.parseString(dezipped.toString(), function (parseErr, result) {
+                if (parseErr) {
+                  console.error(`XML parsing error: ${parseErr}`);
+                  const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
+                  resolve(newError);
+                  return;
+                }
                 games = (result as Record<string, unknown>).fantasy_content;
                 resolve(games);
               });
@@ -50,14 +75,16 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         });
 
         request.on('error', (error) => {
-          console.error(`Error on Get Request --> ${error}`);
-          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          console.error(`Network error on Get Request: ${error.message}`);
+          const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
 
         request.end();
-      } catch (_err) {
-        resolve({ error: 'failed to load data' });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Exception in getTeams: ${errorMsg}`);
+        resolve({ error: `Exception in getTeams: ${errorMsg}` });
       }
     })();
   });
@@ -87,14 +114,38 @@ export const getLeagueTeams = async (
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
+          
+          // Check HTTP status code
+          if (response.statusCode && response.statusCode >= 400) {
+            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            const newError: ErrorResponse = { 
+              error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
+              statusCode: response.statusCode
+            };
+            resolve(newError);
+            return;
+          }
+          
           response.on('data', (chunk) => {
             chunks.push(chunk);
           });
 
           response.on('end', function () {
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
-              parser.parseString(dezipped.toString(), function (_err, result) {
+            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
+              if (err) {
+                console.error(`Decompression error: ${err}`);
+                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+                resolve(newError);
+                return;
+              }
+              parser.parseString(dezipped.toString(), function (parseErr, result) {
+                if (parseErr) {
+                  console.error(`XML parsing error: ${parseErr}`);
+                  const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
+                  resolve(newError);
+                  return;
+                }
                 league = (result as Record<string, unknown>).fantasy_content;
                 resolve(league);
               });
@@ -103,14 +154,16 @@ export const getLeagueTeams = async (
         });
 
         request.on('error', (error) => {
-          console.error(`Error on Get Request --> ${error}`);
-          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          console.error(`Network error on Get Request: ${error.message}`);
+          const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
 
         request.end();
-      } catch (_err) {
-        resolve({ error: 'failed to load data' });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Exception in getLeagueTeams: ${errorMsg}`);
+        resolve({ error: `Exception in getLeagueTeams: ${errorMsg}` });
       }
     })();
   });
@@ -140,14 +193,38 @@ export const getLeagueSettings = async (
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
+          
+          // Check HTTP status code
+          if (response.statusCode && response.statusCode >= 400) {
+            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            const newError: ErrorResponse = { 
+              error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
+              statusCode: response.statusCode
+            };
+            resolve(newError);
+            return;
+          }
+          
           response.on('data', (chunk) => {
             chunks.push(chunk);
           });
 
           response.on('end', function () {
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
-              parser.parseString(dezipped.toString(), function (_err, result) {
+            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
+              if (err) {
+                console.error(`Decompression error: ${err}`);
+                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+                resolve(newError);
+                return;
+              }
+              parser.parseString(dezipped.toString(), function (parseErr, result) {
+                if (parseErr) {
+                  console.error(`XML parsing error: ${parseErr}`);
+                  const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
+                  resolve(newError);
+                  return;
+                }
                 league = (result as Record<string, unknown>).fantasy_content;
                 resolve(league);
               });
@@ -156,14 +233,16 @@ export const getLeagueSettings = async (
         });
 
         request.on('error', (error) => {
-          console.error(`Error on Get Request --> ${error}`);
-          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          console.error(`Network error on Get Request: ${error.message}`);
+          const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
 
         request.end();
-      } catch (_err) {
-        resolve({ error: 'failed to load data' });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Exception in getLeagueSettings: ${errorMsg}`);
+        resolve({ error: `Exception in getLeagueSettings: ${errorMsg}` });
       }
     })();
   });
@@ -205,14 +284,38 @@ export const getWeekStats = async (
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
+          
+          // Check HTTP status code
+          if (response.statusCode && response.statusCode >= 400) {
+            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            const newError: ErrorResponse = { 
+              error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
+              statusCode: response.statusCode
+            };
+            resolve(newError);
+            return;
+          }
+          
           response.on('data', (chunk) => {
             chunks.push(chunk);
           });
 
           response.on('end', function () {
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (_err, dezipped) => {
-              parser.parseString(dezipped.toString(), function (_err, result) {
+            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
+              if (err) {
+                console.error(`Decompression error: ${err}`);
+                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+                resolve(newError);
+                return;
+              }
+              parser.parseString(dezipped.toString(), function (parseErr, result) {
+                if (parseErr) {
+                  console.error(`XML parsing error: ${parseErr}`);
+                  const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
+                  resolve(newError);
+                  return;
+                }
                 stats = (result as Record<string, unknown>).fantasy_content;
                 resolve(stats);
               });
@@ -221,14 +324,16 @@ export const getWeekStats = async (
         });
 
         request.on('error', (error) => {
-          console.error(`Error on Get Request --> ${error}`);
-          const newError: ErrorResponse = { error: `Error on Get Request --> ${error}` };
+          console.error(`Network error on Get Request: ${error.message}`);
+          const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
 
         request.end();
-      } catch (_err) {
-        resolve({ error: 'failed to load data' });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Exception in getWeekStats: ${errorMsg}`);
+        resolve({ error: `Exception in getWeekStats: ${errorMsg}` });
       }
     })();
   });
