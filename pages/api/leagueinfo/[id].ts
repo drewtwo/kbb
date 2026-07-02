@@ -35,12 +35,27 @@ export default async function teams(
       return;
     }
 
+    console.log(`[leagueinfo API] Fetching data for league id: ${Array.isArray(id) ? id[0] : id}`);
+
     // Fetch teams, settings, and standings in parallel
     const [league_teams, league_settings, league_standings] = await Promise.all([
       getLeagueTeams(req, id),
       getLeagueSettings(req, id),
       getLeagueStandings(req, id),
     ]);
+
+    console.log('[leagueinfo API] league_standings isErrorResponse:', isErrorResponse(league_standings));
+    console.log(
+      '[leagueinfo API] league_standings type:',
+      typeof league_standings,
+      league_standings === null ? 'null' : Array.isArray(league_standings) ? 'array' : 'object'
+    );
+    if (league_standings && typeof league_standings === 'object' && !isErrorResponse(league_standings)) {
+      console.log(
+        '[leagueinfo API] league_standings top-level keys:',
+        Object.keys(league_standings as Record<string, unknown>)
+      );
+    }
 
     // Surface any error returned by the Yahoo API utilities
     if (isErrorResponse(league_teams)) {
@@ -69,8 +84,12 @@ export default async function teams(
         league_standings.error
       );
     } else {
+      console.log('[leagueinfo API] Calling extractStandingsFromLeagueContent...');
       const extractedStandings = extractStandingsFromLeagueContent(league_standings);
       if (extractedStandings) {
+        console.log(
+          `[leagueinfo API] extractStandingsFromLeagueContent returned ${extractedStandings.length} team(s)`
+        );
         standings = extractedStandings;
       } else {
         console.warn('[leagueinfo API] extractStandingsFromLeagueContent returned null — omitting standings');
@@ -80,6 +99,9 @@ export default async function teams(
       const standingsContent = league_standings as LeagueStandingsContent;
       if (standingsContent?.league?.is_finished !== undefined) {
         is_finished = standingsContent.league.is_finished === '1';
+        console.log(`[leagueinfo API] is_finished = ${is_finished} (raw: "${standingsContent.league.is_finished}")`);
+      } else {
+        console.log('[leagueinfo API] is_finished field not present in standings league metadata');
       }
     }
 
@@ -105,6 +127,13 @@ export default async function teams(
         `[leagueinfo API] Successfully aggregated stats for ${Object.keys(aggregated_stats.teams).length} teams`
       );
     }
+
+    console.log(
+      '[leagueinfo API] Responding with standings:',
+      standings ? `${standings.length} teams` : 'undefined',
+      '| is_finished:',
+      is_finished
+    );
 
     res.status(200).json({
       teams: league_teams,
