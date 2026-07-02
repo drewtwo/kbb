@@ -16,6 +16,14 @@
   max-height: 250px;
 }
 
+.chartTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
 @media (max-width: 768px) {
   .chartContainer {
     height: 180px;
