@@ -23,13 +23,33 @@ interface GameInfoData {
   is_finished?: boolean;
 }
 
+/**
+ * Validates that a standings array is non-empty and that every entry has the
+ * minimum required fields (team_key, team_id, name).  Entries that pass
+ * validation but are missing team_standings will still be rendered — the
+ * StandingsTable component handles missing record fields gracefully with "-".
+ */
+const isValidStandingsArray = (standings: unknown): standings is StandingsTeam[] => {
+  if (!Array.isArray(standings) || standings.length === 0) {
+    return false;
+  }
+  return standings.every(
+    (t: unknown) =>
+      t !== null &&
+      typeof t === 'object' &&
+      typeof (t as StandingsTeam).team_key === 'string' &&
+      typeof (t as StandingsTeam).team_id === 'string' &&
+      typeof (t as StandingsTeam).name === 'string'
+  );
+};
+
 const League = () => {
   const router = useRouter();
   const { gameid } = router.query;
   const gameIdStr: string = Array.isArray(gameid) ? gameid[0] : (gameid ?? '');
 
   // Use the leagueinfo endpoint which now includes standings and aggregated_stats
-  const league_info_route = `/api/leagueinfo/${gameIdStr}`;
+  const league_info_route: string = `/api/leagueinfo/${gameIdStr}`;
   const { data, error } = useSwr<GameInfoData>(gameIdStr ? league_info_route : null, fetcher);
 
   if (error) return <div>Failed to load teams</div>;
@@ -43,7 +63,23 @@ const League = () => {
     );
   }
 
-  const standings: StandingsTeam[] | undefined = data.standings;
+  // Validate standings before passing to the table component so that
+  // malformed or partially-missing data surfaces a clear fallback message
+  // rather than a runtime crash inside StandingsTable.
+  const rawStandings: StandingsTeam[] | undefined = data.standings;
+  const standings: StandingsTeam[] | undefined = isValidStandingsArray(rawStandings)
+    ? rawStandings
+    : undefined;
+
+  if (rawStandings !== undefined && standings === undefined) {
+    // The API returned a standings field but it failed validation — log details
+    // so the issue can be diagnosed from the browser console.
+    console.warn(
+      '[GamePage] standings data received from API but failed validation — falling back to "no standings" message.',
+      'Raw standings value:', rawStandings
+    );
+  }
+
   const isFinished: boolean = data.is_finished ?? false;
   const aggregatedStats: LeagueAggregatedStats | undefined = data.aggregated_stats;
 
@@ -56,6 +92,14 @@ const League = () => {
     console.warn('[GamePage] No aggregated_stats in API response — multi-week aggregation unavailable');
   }
 
+  if (standings) {
+    console.log(
+      `[GamePage] Rendering standings table with ${standings.length} team(s), isFinished=${isFinished}`
+    );
+  } else {
+    console.warn('[GamePage] No valid standings data available — rendering fallback message');
+  }
+
   return (
     <Layout>
       <p>League ID: {gameid}</p>
@@ -65,7 +109,7 @@ const League = () => {
           {aggregatedStats.week_range.end}
         </p>
       )}
-      {standings && standings.length > 0 ? (
+      {standings ? (
         <StandingsTable
           gameId={gameIdStr}
           standings={standings}
