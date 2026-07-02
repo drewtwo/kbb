@@ -3,6 +3,8 @@ import Layout from '../../../components/layout';
 import useSwr from 'swr';
 import type { LeagueAggregatedStats, StandingsTeam } from '../../../utils/yahooData';
 import StandingsTable from '../../../components/standings-table';
+import { logDiagnostic, logDiagnosticError, logDiagnosticValidationFailure } from '../../../utils/diagnosticLogger';
+import { dumpObject, describeObjectStructure } from '../../../utils/objectDumper';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -31,16 +33,50 @@ interface GameInfoData {
  */
 const isValidStandingsArray = (standings: unknown): standings is StandingsTeam[] => {
   if (!Array.isArray(standings) || standings.length === 0) {
+    logDiagnosticValidationFailure(
+      'game-page',
+      'standings array check',
+      'standings is not an array or is empty',
+      { isArray: Array.isArray(standings), length: Array.isArray(standings) ? standings.length : 'N/A' }
+    );
     return false;
   }
-  return standings.every(
-    (t: unknown) =>
-      t !== null &&
-      typeof t === 'object' &&
-      typeof (t as StandingsTeam).team_key === 'string' &&
-      typeof (t as StandingsTeam).team_id === 'string' &&
-      typeof (t as StandingsTeam).name === 'string'
+  
+  const invalidEntries: Array<{ index: number; reason: string }> = [];
+  
+  const allValid = standings.every(
+    (t: unknown, idx: number) => {
+      if (t === null || typeof t !== 'object') {
+        invalidEntries.push({ index: idx, reason: `not an object (${typeof t})` });
+        return false;
+      }
+      const team = t as StandingsTeam;
+      if (typeof team.team_key !== 'string') {
+        invalidEntries.push({ index: idx, reason: `team_key is not a string (${typeof team.team_key})` });
+        return false;
+      }
+      if (typeof team.team_id !== 'string') {
+        invalidEntries.push({ index: idx, reason: `team_id is not a string (${typeof team.team_id})` });
+        return false;
+      }
+      if (typeof team.name !== 'string') {
+        invalidEntries.push({ index: idx, reason: `name is not a string (${typeof team.name})` });
+        return false;
+      }
+      return true;
+    }
   );
+  
+  if (!allValid && invalidEntries.length > 0) {
+    logDiagnosticValidationFailure(
+      'game-page',
+      'standings entry validation',
+      `${invalidEntries.length} invalid entries found`,
+      { invalidEntries }
+    );
+  }
+  
+  return allValid;
 };
 
 const League = () => {
@@ -78,6 +114,17 @@ const League = () => {
       '[GamePage] standings data received from API but failed validation — falling back to "no standings" message.',
       'Raw standings value:', rawStandings
     );
+    logDiagnosticError(
+      'game-page',
+      'standings validation failed',
+      {
+        rawStandingsType: typeof rawStandings,
+        isArray: Array.isArray(rawStandings),
+        length: Array.isArray(rawStandings) ? rawStandings.length : 'N/A',
+        structure: describeObjectStructure(rawStandings, 2),
+        sample: Array.isArray(rawStandings) && rawStandings.length > 0 ? rawStandings[0] : null,
+      }
+    );
   }
 
   const isFinished: boolean = data.is_finished ?? false;
@@ -88,16 +135,34 @@ const League = () => {
       `[GamePage] Received aggregated stats for ${Object.keys(aggregatedStats.teams).length} teams`,
       `(weeks ${aggregatedStats.week_range.start}–${aggregatedStats.week_range.end})`
     );
+    logDiagnostic(
+      'game-page',
+      'aggregated stats received',
+      {
+        teamCount: Object.keys(aggregatedStats.teams).length,
+        weekRange: aggregatedStats.week_range,
+      }
+    );
   } else {
     console.warn('[GamePage] No aggregated_stats in API response — multi-week aggregation unavailable');
+    logDiagnostic('game-page', 'No aggregated_stats in API response');
   }
 
   if (standings) {
     console.log(
       `[GamePage] Rendering standings table with ${standings.length} team(s), isFinished=${isFinished}`
     );
+    logDiagnostic(
+      'game-page',
+      'Rendering standings table',
+      {
+        teamCount: standings.length,
+        isFinished,
+      }
+    );
   } else {
     console.warn('[GamePage] No valid standings data available — rendering fallback message');
+    logDiagnosticError('game-page', 'No valid standings data available');
   }
 
   return (
