@@ -6,6 +6,7 @@ const eslintConfig = [
   ...coreWebVitals,
   ...nextTypescript,
   {
+    files: ["**/*.{js,jsx,ts,tsx}"],
     plugins: {
       "@typescript-eslint": tseslint.plugin,
     },
