@@ -71,6 +71,182 @@ export const extractTeamsFromLeagueContent = (
   return Array.isArray(teamField) ? teamField : [teamField];
 };
 
+export interface StatCategory {
+  stat_id: string;
+  name: string;
+  display_name: string;
+}
+
+export interface LeagueSettingsContent {
+  league?: {
+    settings?: {
+      stat_categories?: {
+        stats?: {
+          stat?: StatCategory | StatCategory[];
+        };
+      };
+    };
+  };
+}
+
+export interface WeekStatEntry {
+  stat_id: string;
+  value: string;
+}
+
+export interface WeekStatsContent {
+  team?: {
+    team_stats?: {
+      stats?: {
+        stat?: WeekStatEntry | WeekStatEntry[];
+      };
+    };
+    team_points?: {
+      week?: string | number;
+    };
+  };
+  week?: string | number;
+}
+
+/**
+ * Type guard that checks whether a value is an error response object.
+ * @param value - The value to check
+ * @returns true if the value has an `error` string property
+ */
+export const isErrorResponse = (value: unknown): value is ErrorResponse => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    typeof (value as Record<string, unknown>).error === 'string'
+  );
+};
+
+/**
+ * Safely extracts the stat categories array from a league settings fantasy_content
+ * response. Handles both single-stat and multi-stat responses (xml2js with
+ * explicitArray: false returns a single object instead of an array when there is
+ * only one element).
+ * @param fantasyContent - The fantasy_content object from the Yahoo API response
+ * @returns An array of StatCategory objects, or null if the structure is invalid
+ */
+export const extractStatCategoriesFromLeagueSettings = (
+  fantasyContent: unknown
+): StatCategory[] | null => {
+  if (!fantasyContent || typeof fantasyContent !== 'object') {
+    console.error(
+      '[yahooData] extractStatCategoriesFromLeagueSettings: fantasyContent is null or not an object'
+    );
+    return null;
+  }
+
+  const content = fantasyContent as LeagueSettingsContent;
+  const league = content.league;
+
+  if (!league) {
+    console.error(
+      '[yahooData] extractStatCategoriesFromLeagueSettings: league property is missing from fantasy_content'
+    );
+    return null;
+  }
+
+  const settings = league.settings;
+  if (!settings) {
+    console.error(
+      '[yahooData] extractStatCategoriesFromLeagueSettings: league.settings is missing'
+    );
+    return null;
+  }
+
+  const statCategories = settings.stat_categories;
+  if (!statCategories) {
+    console.error(
+      '[yahooData] extractStatCategoriesFromLeagueSettings: league.settings.stat_categories is missing'
+    );
+    return null;
+  }
+
+  const statsContainer = statCategories.stats;
+  if (!statsContainer) {
+    console.error(
+      '[yahooData] extractStatCategoriesFromLeagueSettings: league.settings.stat_categories.stats is missing'
+    );
+    return null;
+  }
+
+  const statField = statsContainer.stat;
+  if (!statField) {
+    console.error(
+      '[yahooData] extractStatCategoriesFromLeagueSettings: league.settings.stat_categories.stats.stat is missing'
+    );
+    return null;
+  }
+
+  // xml2js with explicitArray: false returns a single object when there is only one stat
+  return Array.isArray(statField) ? statField : [statField];
+};
+
+/**
+ * Safely extracts the stats array from a single week's fantasy_content response.
+ * Handles both single-stat and multi-stat responses (xml2js with explicitArray: false
+ * returns a single object instead of an array when there is only one element).
+ * @param fantasyContent - The fantasy_content object from the Yahoo API response
+ * @returns An object with a `stats` array and `week` number, or null if invalid
+ */
+export const extractWeeklyStatsData = (
+  fantasyContent: unknown
+): { stats: WeekStatEntry[]; week: number } | null => {
+  if (!fantasyContent || typeof fantasyContent !== 'object') {
+    console.error(
+      '[yahooData] extractWeeklyStatsData: fantasyContent is null or not an object'
+    );
+    return null;
+  }
+
+  const content = fantasyContent as WeekStatsContent;
+  const team = content.team;
+
+  if (!team) {
+    console.error(
+      '[yahooData] extractWeeklyStatsData: team property is missing from fantasy_content'
+    );
+    return null;
+  }
+
+  const teamStats = team.team_stats;
+  if (!teamStats) {
+    console.error(
+      '[yahooData] extractWeeklyStatsData: team.team_stats is missing'
+    );
+    return null;
+  }
+
+  const statsContainer = teamStats.stats;
+  if (!statsContainer) {
+    console.error(
+      '[yahooData] extractWeeklyStatsData: team.team_stats.stats is missing'
+    );
+    return null;
+  }
+
+  const statField = statsContainer.stat;
+  if (!statField) {
+    console.error(
+      '[yahooData] extractWeeklyStatsData: team.team_stats.stats.stat is missing'
+    );
+    return null;
+  }
+
+  const stats: WeekStatEntry[] = Array.isArray(statField) ? statField : [statField];
+
+  // Extract week number — it may live at the top level or inside team_points
+  const rawWeek =
+    content.week ?? team.team_points?.week ?? 0;
+  const week = Number(rawWeek);
+
+  return { stats, week };
+};
+
 /**
  * Converts a game ID (numeric, e.g. "411") to a league key format suitable for
  * Yahoo Fantasy API calls. If the input already looks like a full league key
