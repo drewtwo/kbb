@@ -19,8 +19,31 @@ interface StandingsTableProps {
  *
  * When `isFinished` is true, a winner banner (🏆 + team name) is shown above
  * the table for the team with rank "1".
+ *
+ * When `standings` is an empty array, a diagnostic message is rendered instead
+ * of an empty table so that the absence of data is immediately visible.
  */
 const StandingsTable: React.FC<StandingsTableProps> = ({ gameId, standings, isFinished }) => {
+  // Guard: render a diagnostic message when the standings array is empty so
+  // that an empty table (which looks identical to a loading state) is never
+  // shown to the user.
+  if (!standings || standings.length === 0) {
+    return (
+      <div className={styles.standingsEmpty}>
+        <p>
+          <strong>Standings unavailable.</strong> No team data was returned by the API.
+          This can happen when the league has not yet started, when the season has not
+          been set up, or when there was a temporary error fetching standings from Yahoo.
+        </p>
+        <p>
+          <em>Tip:</em> Check the browser console and server logs for{' '}
+          <code>[yahooData] extractStandingsFromLeagueContent</code> and{' '}
+          <code>[leagueinfo API]</code> messages to trace where the data was lost.
+        </p>
+      </div>
+    );
+  }
+
   const winner: StandingsTeam | undefined = isFinished
     ? standings.find((t: StandingsTeam) => t.team_standings?.rank === '1')
     : undefined;
@@ -51,6 +74,15 @@ const StandingsTable: React.FC<StandingsTableProps> = ({ gameId, standings, isFi
         <tbody>
           {standings.map((team: StandingsTeam) => {
             const record = team.team_standings;
+
+            // If team_standings is missing entirely, render a row with dashes
+            // and a console warning so the issue is traceable without crashing.
+            if (!record) {
+              console.warn(
+                `[StandingsTable] team "${team.name}" (id: ${team.team_id}) is missing team_standings — rendering placeholder row`
+              );
+            }
+
             const wins: string = record?.outcome_totals?.wins ?? '-';
             const losses: string = record?.outcome_totals?.losses ?? '-';
             const ties: string = record?.outcome_totals?.ties ?? '-';

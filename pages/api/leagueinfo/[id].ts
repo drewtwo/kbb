@@ -35,12 +35,17 @@ export default async function teams(
       return;
     }
 
+    const leagueIdStr: string = Array.isArray(id) ? id[0] : id;
+    console.log(`[leagueinfo API] Fetching data for league id: "${leagueIdStr}"`);
+
     // Fetch teams, settings, and standings in parallel
+    console.log('[leagueinfo API] Starting parallel fetch: teams, settings, standings');
     const [league_teams, league_settings, league_standings] = await Promise.all([
       getLeagueTeams(req, id),
       getLeagueSettings(req, id),
       getLeagueStandings(req, id),
     ]);
+    console.log('[leagueinfo API] Parallel fetch complete');
 
     // Surface any error returned by the Yahoo API utilities
     if (isErrorResponse(league_teams)) {
@@ -50,6 +55,7 @@ export default async function teams(
       res.status(statusCode).json({ error: `Failed to load league teams: ${league_teams.error}` });
       return;
     }
+    console.log('[leagueinfo API] league_teams fetched successfully, type:', typeof league_teams);
 
     if (isErrorResponse(league_settings)) {
       console.error('[leagueinfo API] getLeagueSettings returned error:', league_settings.error);
@@ -58,6 +64,7 @@ export default async function teams(
       res.status(statusCode).json({ error: `Failed to load league settings: ${league_settings.error}` });
       return;
     }
+    console.log('[leagueinfo API] league_settings fetched successfully, type:', typeof league_settings);
 
     // Extract standings — non-fatal if it fails
     let standings: StandingsTeam[] | undefined;
@@ -69,17 +76,37 @@ export default async function teams(
         league_standings.error
       );
     } else {
-      const extractedStandings = extractStandingsFromLeagueContent(league_standings);
+      console.log(
+        '[leagueinfo API] league_standings fetched successfully, type:', typeof league_standings,
+        '| isNull:', league_standings === null,
+        '| keys:', league_standings && typeof league_standings === 'object'
+          ? Object.keys(league_standings as object)
+          : 'N/A'
+      );
+
+      const extractedStandings: StandingsTeam[] | null = extractStandingsFromLeagueContent(league_standings);
       if (extractedStandings) {
         standings = extractedStandings;
+        console.log(
+          `[leagueinfo API] extractStandingsFromLeagueContent succeeded: ${standings.length} team(s)`
+        );
+        // Log a brief summary of each team's standings entry for traceability
+        standings.forEach((t: StandingsTeam, i: number) => {
+          console.log(
+            `[leagueinfo API]   standings[${i}]: team_id=${t.team_id} name="${t.name}" rank=${t.team_standings?.rank ?? 'N/A'} wins=${t.team_standings?.outcome_totals?.wins ?? 'N/A'}`
+          );
+        });
       } else {
-        console.warn('[leagueinfo API] extractStandingsFromLeagueContent returned null — omitting standings');
+        console.warn('[leagueinfo API] extractStandingsFromLeagueContent returned null — omitting standings from response');
       }
 
       // Extract is_finished from the standings league metadata
-      const standingsContent = league_standings as LeagueStandingsContent;
+      const standingsContent: LeagueStandingsContent = league_standings as LeagueStandingsContent;
       if (standingsContent?.league?.is_finished !== undefined) {
         is_finished = standingsContent.league.is_finished === '1';
+        console.log(`[leagueinfo API] is_finished extracted: ${is_finished} (raw: "${standingsContent.league.is_finished}")`);
+      } else {
+        console.log('[leagueinfo API] is_finished not present in standings response — defaulting to false');
       }
     }
 
@@ -106,15 +133,24 @@ export default async function teams(
       );
     }
 
-    res.status(200).json({
+    const responsePayload: ResponseData = {
       teams: league_teams,
       settings: league_settings,
       ...(aggregated_stats ? { aggregated_stats } : {}),
       ...(standings ? { standings } : {}),
       ...(is_finished !== undefined ? { is_finished } : {}),
-    });
+    };
+
+    console.log(
+      '[leagueinfo API] Sending response — standings present:', !!standings,
+      '| standings count:', standings?.length ?? 0,
+      '| aggregated_stats present:', !!aggregated_stats,
+      '| is_finished:', is_finished
+    );
+
+    res.status(200).json(responsePayload);
   } catch (_err) {
-    const message = _err instanceof Error ? _err.message : 'Unknown error';
+    const message: string = _err instanceof Error ? _err.message : 'Unknown error';
     console.error('[leagueinfo API] Unexpected error:', message);
     res.status(500).json({ error: 'failed to load data' });
   }

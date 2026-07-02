@@ -59,6 +59,36 @@
   text-decoration: underline;
 }
 
+/* ─── Empty / diagnostic state ─────────────────────────────────────────────── */
+
+.standingsEmpty {
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  color: #5d4037;
+  line-height: 1.6;
+}
+
+.standingsEmpty p {
+  margin: 0 0 0.5rem;
+}
+
+.standingsEmpty p:last-child {
+  margin-bottom: 0;
+}
+
+.standingsEmpty code {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+  color: #333;
+}
+
 /* ─── Winner Banner ────────────────────────────────────────────────────────── */
 
 .winnerBanner {
