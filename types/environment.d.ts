@@ -14,6 +14,18 @@ declare global {
       NEXTAUTH_URL?: string;
       NEXTAUTH_SECRET: string; // Required in production, validated at runtime
       VERCEL_URL?: string;
+      /**
+       * First week of the season to include in multi-week stat aggregation (1-based, inclusive).
+       * Defaults to 1 when not set.
+       * @example "1"
+       */
+      NEXT_PUBLIC_SEASON_START_WEEK?: string;
+      /**
+       * Last week of the season to include in multi-week stat aggregation (1-based, inclusive).
+       * Defaults to 15 when not set.
+       * @example "15"
+       */
+      NEXT_PUBLIC_SEASON_END_WEEK?: string;
     }
   }
 }
