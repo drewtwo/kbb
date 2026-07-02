@@ -10,6 +10,8 @@ import {
   SEASON_END_WEEK,
 } from '../../../utils/yahooData';
 import type { LeagueAggregatedStats, StandingsTeam, LeagueStandingsContent } from '../../../utils/yahooData';
+import { logDiagnostic, logDiagnosticError, logDiagnosticDump } from '../../../utils/diagnosticLogger';
+import { describeObjectStructure, dumpObject } from '../../../utils/objectDumper';
 
 type ResponseData = {
   name?: string;
@@ -75,6 +77,10 @@ export default async function teams(
         '[leagueinfo API] getLeagueStandings returned error (non-fatal):',
         league_standings.error
       );
+      logDiagnosticError('leagueinfo-api', 'getLeagueStandings returned error', {
+        error: league_standings.error,
+        statusCode: league_standings.statusCode,
+      });
     } else {
       console.log(
         '[leagueinfo API] league_standings fetched successfully, type:', typeof league_standings,
@@ -83,6 +89,11 @@ export default async function teams(
           ? Object.keys(league_standings as object)
           : 'N/A'
       );
+      logDiagnostic('leagueinfo-api', 'league_standings fetched successfully', {
+        type: typeof league_standings,
+        isNull: league_standings === null,
+        structure: describeObjectStructure(league_standings, 3),
+      });
 
       const extractedStandings: StandingsTeam[] | null = extractStandingsFromLeagueContent(league_standings);
       if (extractedStandings) {
@@ -90,14 +101,21 @@ export default async function teams(
         console.log(
           `[leagueinfo API] extractStandingsFromLeagueContent succeeded: ${standings.length} team(s)`
         );
+        logDiagnostic('leagueinfo-api', `extractStandingsFromLeagueContent succeeded`, {
+          teamCount: standings.length,
+        });
         // Log a brief summary of each team's standings entry for traceability
         standings.forEach((t: StandingsTeam, i: number) => {
           console.log(
             `[leagueinfo API]   standings[${i}]: team_id=${t.team_id} name="${t.name}" rank=${t.team_standings?.rank ?? 'N/A'} wins=${t.team_standings?.outcome_totals?.wins ?? 'N/A'}`
           );
         });
+        logDiagnosticDump('leagueinfo-api', 'Sample standings entry', standings[0]);
       } else {
         console.warn('[leagueinfo API] extractStandingsFromLeagueContent returned null — omitting standings from response');
+        logDiagnosticError('leagueinfo-api', 'extractStandingsFromLeagueContent returned null', {
+          rawStandingsStructure: describeObjectStructure(league_standings, 2),
+        });
       }
 
       // Extract is_finished from the standings league metadata
@@ -105,8 +123,13 @@ export default async function teams(
       if (standingsContent?.league?.is_finished !== undefined) {
         is_finished = standingsContent.league.is_finished === '1';
         console.log(`[leagueinfo API] is_finished extracted: ${is_finished} (raw: "${standingsContent.league.is_finished}")`);
+        logDiagnostic('leagueinfo-api', 'is_finished extracted', {
+          is_finished,
+          raw: standingsContent.league.is_finished,
+        });
       } else {
         console.log('[leagueinfo API] is_finished not present in standings response — defaulting to false');
+        logDiagnostic('leagueinfo-api', 'is_finished not present in standings response');
       }
     }
 
