@@ -6,7 +6,8 @@ declare global {
       YAHOO_TOKEN_URL: string;
       YAHOO_CLIENT_ID: string;
       YAHOO_CLIENT_SECRET: string;
-      YAHOO_CALLBACK_URL: string;
+      /** @deprecated YAHOO_CALLBACK_URL is auto-generated at runtime from NEXTAUTH_URL. Do not set manually. */
+      YAHOO_CALLBACK_URL?: string;
       NODE_ENV: 'development' | 'production';
       GITHUB_ID: string;
       GITHUB_SECRET: string;

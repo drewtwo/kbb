@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import type { OAuthConfig } from 'next-auth/providers/oauth';
+import { getYahooCallbackUrl } from '../../../lib/get-callback-url';
 
 interface YahooProfile {
   sub: string;
@@ -47,6 +48,7 @@ export default NextAuth({
       token: process.env.YAHOO_TOKEN_URL!,
       clientId: process.env.YAHOO_CLIENT_ID!,
       clientSecret: process.env.YAHOO_CLIENT_SECRET!,
+      callbackUrl: getYahooCallbackUrl(),
       userinfo: 'https://api.login.yahoo.com/openid/v1/userinfo',
       profile: (profile: YahooProfile) => {
         return {

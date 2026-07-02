@@ -67,13 +67,38 @@ The application implements intelligent NEXTAUTH_URL resolution that automaticall
 
 ## YAHOO_CALLBACK_URL Auto-Generation
 
-The `YAHOO_CALLBACK_URL` is automatically derived from `NEXTAUTH_URL` in CI/CD environments:
+The `YAHOO_CALLBACK_URL` is **automatically generated at runtime** by `lib/get-callback-url.ts` and
+does **not** need to be set as an environment variable anywhere — not in `.env.local`, not in GitHub
+Secrets, and not in CI/CD pipelines.
 
-- **In CI/CD**: `YAHOO_CALLBACK_URL` is automatically set to `{NEXTAUTH_URL}/api/auth/callback/yahoo`
-- **Local Development**: You can manually set it or rely on the NextAuth configuration to construct it
-- **No Manual Configuration Needed**: You do not need to manually configure `YAHOO_CALLBACK_URL` in GitHub Secrets
+### How It Works
 
-This automatic derivation ensures that the Yahoo OAuth callback URL always matches your deployment URL without requiring additional configuration.
+The `getYahooCallbackUrl()` utility resolves the base URL using the following priority order:
+
+1. **`NEXTAUTH_URL`** — used when explicitly set (local development or production)
+2. **`VERCEL_URL`** — used automatically for Vercel preview deployments (prefixed with `https://`)
+3. **`http://localhost:3000`** — fallback for local development when neither variable is set
+
+The Yahoo callback path `/api/auth/callback/yahoo` is then appended to the resolved base URL.
+
+### Examples
+
+| Environment | Variable Set | Generated Callback URL |
+|---|---|---|
+| Local dev | `NEXTAUTH_URL=http://localhost:3000` | `http://localhost:3000/api/auth/callback/yahoo` |
+| Local dev (no var) | _(none)_ | `http://localhost:3000/api/auth/callback/yahoo` |
+| Production | `NEXTAUTH_URL=https://yourdomain.com` | `https://yourdomain.com/api/auth/callback/yahoo` |
+| Vercel preview | `VERCEL_URL=my-app-abc123.vercel.app` | `https://my-app-abc123.vercel.app/api/auth/callback/yahoo` |
+
+### No Manual Configuration Needed
+
+You do **not** need to:
+- Set `YAHOO_CALLBACK_URL` in `.env.local`
+- Add `YAHOO_CALLBACK_URL` as a GitHub Secret
+- Configure `YAHOO_CALLBACK_URL` in any CI/CD pipeline
+
+Simply ensure `NEXTAUTH_URL` is set correctly for your environment (or rely on `VERCEL_URL` for
+Vercel preview deployments) and the callback URL will be derived automatically.
 
 ## Local Development Setup
 
@@ -155,7 +180,7 @@ Add the following secrets to your GitHub repository:
 
 **CRITICAL**: `NEXTAUTH_SECRET` is **REQUIRED** for production deployments and is validated at build time. Without it, the build will fail with a clear error message.
 
-**Note**: `YAHOO_CALLBACK_URL` is **not** required as a GitHub Secret. It is automatically generated in the CI/CD workflow by appending `/api/auth/callback/yahoo` to `NEXTAUTH_URL`.
+**Note**: `YAHOO_CALLBACK_URL` is **not** required as a GitHub Secret and should **not** be set manually. It is automatically generated at runtime by `lib/get-callback-url.ts` using the value of `NEXTAUTH_URL`.
 
 ### 2. GitHub Actions Workflow
 
@@ -164,12 +189,12 @@ The `.github/workflows/setup-env.yml` workflow automatically:
 1. Triggers on push to `main` and `develop` branches
 2. Triggers on pull requests to `main` and `develop` branches
 3. Creates `.env.local` from GitHub Secrets
-4. **Automatically generates `YAHOO_CALLBACK_URL`** by appending `/api/auth/callback/yahoo` to `NEXTAUTH_URL`
+4. **`YAHOO_CALLBACK_URL` is auto-generated at runtime** — no workflow step is needed to set it
 5. **Validates environment variables** before building (build will fail if required variables are missing)
 6. Verifies the environment file was created successfully
 7. Runs linting, type checking, and build validation
 
-The workflow ensures that sensitive credentials are never committed to the repository and that the Yahoo callback URL is always correctly derived from your deployment URL.
+The workflow ensures that sensitive credentials are never committed to the repository and that the Yahoo callback URL is always correctly derived from your deployment URL at runtime.
 
 ### 3. Preview Deployments (Vercel)
 
@@ -177,7 +202,7 @@ For Vercel preview deployments:
 
 1. The `VERCEL_URL` environment variable is automatically provided by Vercel
 2. If `NEXTAUTH_URL` is not set in GitHub Secrets, the NextAuth configuration will automatically use `https://{VERCEL_URL}`
-3. `YAHOO_CALLBACK_URL` will be automatically derived as `https://{VERCEL_URL}/api/auth/callback/yahoo`
+3. `YAHOO_CALLBACK_URL` will be automatically generated at runtime as `https://{VERCEL_URL}/api/auth/callback/yahoo`
 4. No additional configuration is needed for preview deployments
 5. **NEXTAUTH_SECRET must still be set in GitHub Secrets** — it will be passed to Vercel automatically and validated at build time
 
@@ -197,7 +222,7 @@ For Vercel preview deployments:
 
 ### Auto-Generated Variables
 
-- **YAHOO_CALLBACK_URL**: Automatically derived from `NEXTAUTH_URL` in CI/CD (no manual configuration needed)
+- **YAHOO_CALLBACK_URL**: Automatically generated at runtime by `lib/get-callback-url.ts` from `NEXTAUTH_URL` (or `VERCEL_URL`). **Do not set this variable manually.**
 
 ### Optional Variables
 
