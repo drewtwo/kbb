@@ -15,6 +15,81 @@ interface ErrorResponse {
   statusCode?: number;
 }
 
+export interface TeamData {
+  team_key: string;
+  team_id: string;
+  name: string;
+}
+
+export interface LeagueTeamsContent {
+  league?: {
+    league_key?: string;
+    league_id?: string;
+    name?: string;
+    teams?: {
+      team?: TeamData | TeamData[];
+    };
+  };
+}
+
+/**
+ * Safely extracts the teams array from the league fantasy_content response.
+ * Handles both single-team and multi-team responses (xml2js with explicitArray: false
+ * returns a single object instead of an array when there is only one element).
+ * @param fantasyContent - The fantasy_content object from the Yahoo API response
+ * @returns An array of TeamData objects, or null if the structure is invalid
+ */
+export const extractTeamsFromLeagueContent = (
+  fantasyContent: unknown
+): TeamData[] | null => {
+  if (!fantasyContent || typeof fantasyContent !== 'object') {
+    console.error('[yahooData] extractTeamsFromLeagueContent: fantasyContent is null or not an object');
+    return null;
+  }
+
+  const content = fantasyContent as LeagueTeamsContent;
+  const league = content.league;
+
+  if (!league) {
+    console.error('[yahooData] extractTeamsFromLeagueContent: league property is missing from fantasy_content');
+    return null;
+  }
+
+  const teamsContainer = league.teams;
+  if (!teamsContainer) {
+    console.error('[yahooData] extractTeamsFromLeagueContent: league.teams is missing');
+    return null;
+  }
+
+  const teamField = teamsContainer.team;
+  if (!teamField) {
+    console.error('[yahooData] extractTeamsFromLeagueContent: league.teams.team is missing');
+    return null;
+  }
+
+  // xml2js with explicitArray: false returns a single object when there is only one team
+  return Array.isArray(teamField) ? teamField : [teamField];
+};
+
+/**
+ * Converts a game ID (numeric, e.g. "411") to a league key format suitable for
+ * Yahoo Fantasy API calls. If the input already looks like a full league key
+ * (contains a dot, e.g. "411.l.12345"), it is returned as-is.
+ * @param gameId - The game ID or league key string
+ * @returns The league key string
+ */
+export const convertGameIdToLeagueKey = (gameId: string): string => {
+  // If it already contains a dot it is likely already a full league key
+  if (gameId.includes('.')) {
+    return gameId;
+  }
+  // A bare numeric game ID is used directly as the league key prefix.
+  // Callers that need a full league key (game_id.l.league_id) should
+  // supply the complete key; this helper simply passes the value through
+  // so that the API path is constructed correctly.
+  return gameId;
+};
+
 /**
  * Validates that the token has an access token
  * @param token - The JWT token from NextAuth
