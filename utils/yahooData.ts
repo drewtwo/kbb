@@ -431,15 +431,13 @@ export const aggregateWeeklyStats = (
 };
 
 /**
+ * @deprecated Standings are now fetched directly from the /standings endpoint
+ * via `getLeagueStandings`, which returns a processed `StandingsTeam[]`
+ * directly. This function is retained for backwards compatibility but is no
+ * longer called by the application.
+ *
  * Fetches and aggregates weekly stats for every team in a league across all
  * weeks from SEASON_START_WEEK to SEASON_END_WEEK (inclusive).
- *
- * This is the primary entry-point for the league stats multi-week aggregation
- * feature. It:
- *   1. Extracts the list of teams from the provided league teams content.
- *   2. For each team, fetches stats for every week in the configured range.
- *   3. Aggregates (sums) each stat across all weeks.
- *   4. Returns a LeagueAggregatedStats object keyed by team_key.
  *
  * @param req - The Next.js API request (needed for auth token extraction)
  * @param leagueTeamsContent - The raw fantasy_content from getLeagueTeams
