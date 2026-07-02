@@ -118,6 +118,35 @@ export interface WeeklyStatsContent {
   };
 }
 
+// ─── Aggregated stats types ──────────────────────────────────────────────────
+
+/**
+ * Represents a single team's aggregated stats across all weeks of the season.
+ */
+export interface AggregatedTeamStats {
+  /** The team key (e.g. "411.l.12345.t.1") */
+  team_key: string;
+  /** The team name */
+  team_name: string;
+  /** Aggregated stat values keyed by stat_id */
+  stats: Record<string, number>;
+  /** Number of weeks successfully aggregated */
+  weeks_counted: number;
+}
+
+/**
+ * Result of aggregating weekly stats for all teams in a league.
+ */
+export interface LeagueAggregatedStats {
+  /** Map from team_key to that team's aggregated stats */
+  teams: Record<string, AggregatedTeamStats>;
+  /** The week range that was aggregated (inclusive) */
+  week_range: {
+    start: number;
+    end: number;
+  };
+}
+
 /**
  * Type guard: returns true when the value is an error response object.
  * @param value - Any value returned from a Yahoo API utility
@@ -248,6 +277,194 @@ export const extractStatsFromWeekContent = (
 
   // xml2js with explicitArray: false returns a single object when there is only one stat
   return Array.isArray(statField) ? statField : [statField];
+};
+
+// ─── Season week-range constants ────────────────────────────────────────────
+//
+// These constants define the inclusive week range used when aggregating stats
+// across the full season.  Override them via environment variables so that
+// different seasons or league configurations can be supported without code
+// changes.
+//
+//   NEXT_PUBLIC_SEASON_START_WEEK  – first week to include (default: 1)
+//   NEXT_PUBLIC_SEASON_END_WEEK    – last week to include  (default: 15)
+
+/** First week of the season to include in multi-week aggregation (1-based). */
+export const SEASON_START_WEEK: number = (() => {
+  const raw: string | undefined = process.env.NEXT_PUBLIC_SEASON_START_WEEK;
+  const parsed: number = raw ? parseInt(raw, 10) : NaN;
+  return !isNaN(parsed) && parsed > 0 ? parsed : 1;
+})();
+
+/** Last week of the season to include in multi-week aggregation (1-based). */
+export const SEASON_END_WEEK: number = (() => {
+  const raw: string | undefined = process.env.NEXT_PUBLIC_SEASON_END_WEEK;
+  const parsed: number = raw ? parseInt(raw, 10) : NaN;
+  return !isNaN(parsed) && parsed >= SEASON_START_WEEK ? parsed : 15;
+})();
+
+/**
+ * Aggregates weekly stats for a single team across multiple weeks.
+ *
+ * Each week's stats are summed together. For stat_id "60" (IP, which is
+ * returned as "X/Y" format), only the numerator is used. Non-numeric values
+ * are treated as 0 and do not contribute to the aggregate.
+ *
+ * @param weeklyStats - Array of raw fantasy_content objects, one per week
+ * @param teamKey - The team key string (used for logging)
+ * @param teamName - The team name (used for logging)
+ * @returns An AggregatedTeamStats object with summed stats, or null on failure
+ */
+export const aggregateWeeklyStats = (
+  weeklyStats: unknown[],
+  teamKey: string,
+  teamName: string
+): AggregatedTeamStats | null => {
+  if (!Array.isArray(weeklyStats) || weeklyStats.length === 0) {
+    console.error(
+      `[yahooData] aggregateWeeklyStats: no weekly stats provided for team ${teamKey}`
+    );
+    return null;
+  }
+
+  const aggregated: Record<string, number> = {};
+  let weeks_counted: number = 0;
+
+  for (const weekContent of weeklyStats) {
+    // Skip error responses silently — a missing week should not break the whole aggregate
+    if (isErrorResponse(weekContent)) {
+      console.warn(
+        `[yahooData] aggregateWeeklyStats: skipping error week for team ${teamKey}:`,
+        (weekContent as ErrorResponse).error
+      );
+      continue;
+    }
+
+    const stats = extractStatsFromWeekContent(weekContent);
+    if (!stats) {
+      console.warn(
+        `[yahooData] aggregateWeeklyStats: could not extract stats for a week of team ${teamKey}, skipping`
+      );
+      continue;
+    }
+
+    for (const entry of stats) {
+      const { stat_id, value } = entry;
+      // For stat_id "60" (Innings Pitched), the value is "X/Y" — use the numerator
+      const rawValue: string =
+        stat_id === '60' ? (value?.split('/')[0] ?? '0') : (value ?? '0');
+      const numericValue: number = Number(rawValue);
+
+      if (!isNaN(numericValue)) {
+        aggregated[stat_id] = (aggregated[stat_id] ?? 0) + numericValue;
+      }
+    }
+
+    weeks_counted += 1;
+  }
+
+  if (weeks_counted === 0) {
+    console.error(
+      `[yahooData] aggregateWeeklyStats: no valid weeks found for team ${teamKey}`
+    );
+    return null;
+  }
+
+  console.log(
+    `[yahooData] aggregateWeeklyStats: aggregated ${weeks_counted} weeks for team ${teamKey} (${teamName})`
+  );
+
+  return {
+    team_key: teamKey,
+    team_name: teamName,
+    stats: aggregated,
+    weeks_counted,
+  };
+};
+
+/**
+ * Fetches and aggregates weekly stats for every team in a league across all
+ * weeks from SEASON_START_WEEK to SEASON_END_WEEK (inclusive).
+ *
+ * This is the primary entry-point for the league stats multi-week aggregation
+ * feature. It:
+ *   1. Extracts the list of teams from the provided league teams content.
+ *   2. For each team, fetches stats for every week in the configured range.
+ *   3. Aggregates (sums) each stat across all weeks.
+ *   4. Returns a LeagueAggregatedStats object keyed by team_key.
+ *
+ * @param req - The Next.js API request (needed for auth token extraction)
+ * @param leagueTeamsContent - The raw fantasy_content from getLeagueTeams
+ * @param startWeek - First week of the season to include (default: SEASON_START_WEEK)
+ * @param endWeek - Last week of the season to include (default: SEASON_END_WEEK)
+ * @returns A LeagueAggregatedStats object, or null on failure
+ */
+export const getLeagueAggregatedStats = async (
+  req: NextApiRequest,
+  leagueTeamsContent: unknown,
+  startWeek: number = SEASON_START_WEEK,
+  endWeek: number = SEASON_END_WEEK
+): Promise<LeagueAggregatedStats | null> => {
+  const teams = extractTeamsFromLeagueContent(leagueTeamsContent);
+  if (!teams || teams.length === 0) {
+    console.error('[yahooData] getLeagueAggregatedStats: could not extract teams from league content');
+    return null;
+  }
+
+  console.log(
+    `[yahooData] getLeagueAggregatedStats: aggregating weeks ${startWeek}-${endWeek} for ${teams.length} teams`
+  );
+
+  const result: LeagueAggregatedStats = {
+    teams: {},
+    week_range: { start: startWeek, end: endWeek },
+  };
+
+  for (const team of teams) {
+    const { team_key, name } = team;
+
+    // Fetch stats for every week in the range in parallel for this team
+    const weekNumbers: number[] = [];
+    for (let w: number = startWeek; w <= endWeek; w++) {
+      weekNumbers.push(w);
+    }
+
+    const weeklyStatsPromises: Promise<unknown>[] = weekNumbers.map(
+      (week: number) => getWeekStats(req, team_key, String(week))
+    );
+
+    let weeklyStats: unknown[];
+    try {
+      weeklyStats = await Promise.all(weeklyStatsPromises);
+    } catch (err) {
+      const msg: string = err instanceof Error ? err.message : 'Unknown error';
+      console.error(
+        `[yahooData] getLeagueAggregatedStats: error fetching weekly stats for team ${team_key}: ${msg}`
+      );
+      continue;
+    }
+
+    const aggregated: AggregatedTeamStats | null = aggregateWeeklyStats(
+      weeklyStats,
+      team_key,
+      name
+    );
+
+    if (aggregated) {
+      result.teams[team_key] = aggregated;
+    }
+  }
+
+  if (Object.keys(result.teams).length === 0) {
+    console.error('[yahooData] getLeagueAggregatedStats: no teams were successfully aggregated');
+    return null;
+  }
+
+  console.log(
+    `[yahooData] getLeagueAggregatedStats: successfully aggregated stats for ${Object.keys(result.teams).length} teams`
+  );
+
+  return result;
 };
 
 /**

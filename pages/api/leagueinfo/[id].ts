@@ -1,11 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getLeagueTeams, getLeagueSettings, isErrorResponse } from '../../../utils/yahooData';
+import {
+  getLeagueTeams,
+  getLeagueSettings,
+  getLeagueAggregatedStats,
+  isErrorResponse,
+  SEASON_START_WEEK,
+  SEASON_END_WEEK,
+} from '../../../utils/yahooData';
+import type { LeagueAggregatedStats } from '../../../utils/yahooData';
 
 type ResponseData = {
   name?: string;
   error?: string;
   teams?: unknown;
   settings?: unknown;
+  /** Aggregated stats for every team across all weeks of the season. */
+  aggregated_stats?: LeagueAggregatedStats;
 };
 
 export default async function teams(
@@ -39,7 +49,34 @@ export default async function teams(
       return;
     }
 
-    res.status(200).json({ teams: league_teams, settings: league_settings });
+    // Aggregate weekly stats for all teams across all weeks of the season.
+    // A failure here is non-fatal — we still return teams and settings so the
+    // rest of the page can render.
+    console.log(
+      `[leagueinfo API] Aggregating league stats for weeks ${SEASON_START_WEEK}-${SEASON_END_WEEK}`
+    );
+    const aggregated_stats: LeagueAggregatedStats | null = await getLeagueAggregatedStats(
+      req,
+      league_teams,
+      SEASON_START_WEEK,
+      SEASON_END_WEEK
+    );
+
+    if (!aggregated_stats) {
+      console.warn(
+        '[leagueinfo API] getLeagueAggregatedStats returned null — responding without aggregated stats'
+      );
+    } else {
+      console.log(
+        `[leagueinfo API] Successfully aggregated stats for ${Object.keys(aggregated_stats.teams).length} teams`
+      );
+    }
+
+    res.status(200).json({
+      teams: league_teams,
+      settings: league_settings,
+      ...(aggregated_stats ? { aggregated_stats } : {}),
+    });
   } catch (_err) {
     const message = _err instanceof Error ? _err.message : 'Unknown error';
     console.error('[leagueinfo API] Unexpected error:', message);
