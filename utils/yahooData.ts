@@ -15,12 +15,38 @@ interface ErrorResponse {
   statusCode?: number;
 }
 
+/**
+ * Validates that the token has an access token
+ * @param token - The JWT token from NextAuth
+ * @returns true if token is valid, false otherwise
+ */
+const validateToken = (token: Record<string, unknown> | null): boolean => {
+  if (!token) {
+    console.error('[yahooData] Token is null or undefined');
+    return false;
+  }
+  if (!token.accessToken) {
+    console.error('[yahooData] Token does not have accessToken property');
+    return false;
+  }
+  return true;
+};
+
 export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
   return new Promise((resolve) => {
     (async () => {
       try {
         let games: unknown = {};
         const token = await getToken({ req, secret });
+        
+        // Validate token before making request
+        if (!validateToken(token)) {
+          const errorMsg = 'Invalid or missing authentication token';
+          console.error(`[yahooData] getTeams: ${errorMsg}`);
+          resolve({ error: errorMsg, statusCode: 401 });
+          return;
+        }
+
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
@@ -38,7 +64,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
           
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
-            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            console.error(`[yahooData] getTeams HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
             const newError: ErrorResponse = { 
               error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
               statusCode: response.statusCode
@@ -55,14 +81,14 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
             zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
               if (err) {
-                console.error(`Decompression error: ${err}`);
+                console.error(`[yahooData] getTeams Decompression error: ${err}`);
                 const newError: ErrorResponse = { error: `Decompression error: ${err}` };
                 resolve(newError);
                 return;
               }
               parser.parseString(dezipped.toString(), function (parseErr, result) {
                 if (parseErr) {
-                  console.error(`XML parsing error: ${parseErr}`);
+                  console.error(`[yahooData] getTeams XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
                   resolve(newError);
                   return;
@@ -75,7 +101,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         });
 
         request.on('error', (error) => {
-          console.error(`Network error on Get Request: ${error.message}`);
+          console.error(`[yahooData] getTeams Network error: ${error.message}`);
           const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
@@ -83,7 +109,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         request.end();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error(`Exception in getTeams: ${errorMsg}`);
+        console.error(`[yahooData] Exception in getTeams: ${errorMsg}`);
         resolve({ error: `Exception in getTeams: ${errorMsg}` });
       }
     })();
@@ -99,6 +125,15 @@ export const getLeagueTeams = async (
       try {
         let league: unknown = {};
         const token = await getToken({ req, secret });
+        
+        // Validate token before making request
+        if (!validateToken(token)) {
+          const errorMsg = 'Invalid or missing authentication token';
+          console.error(`[yahooData] getLeagueTeams: ${errorMsg}`);
+          resolve({ error: errorMsg, statusCode: 401 });
+          return;
+        }
+
         const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
         const options = {
           hostname: 'fantasysports.yahooapis.com',
@@ -117,7 +152,7 @@ export const getLeagueTeams = async (
           
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
-            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            console.error(`[yahooData] getLeagueTeams HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
             const newError: ErrorResponse = { 
               error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
               statusCode: response.statusCode
@@ -134,14 +169,14 @@ export const getLeagueTeams = async (
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
             zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
               if (err) {
-                console.error(`Decompression error: ${err}`);
+                console.error(`[yahooData] getLeagueTeams Decompression error: ${err}`);
                 const newError: ErrorResponse = { error: `Decompression error: ${err}` };
                 resolve(newError);
                 return;
               }
               parser.parseString(dezipped.toString(), function (parseErr, result) {
                 if (parseErr) {
-                  console.error(`XML parsing error: ${parseErr}`);
+                  console.error(`[yahooData] getLeagueTeams XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
                   resolve(newError);
                   return;
@@ -154,7 +189,7 @@ export const getLeagueTeams = async (
         });
 
         request.on('error', (error) => {
-          console.error(`Network error on Get Request: ${error.message}`);
+          console.error(`[yahooData] getLeagueTeams Network error: ${error.message}`);
           const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
@@ -162,7 +197,7 @@ export const getLeagueTeams = async (
         request.end();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error(`Exception in getLeagueTeams: ${errorMsg}`);
+        console.error(`[yahooData] Exception in getLeagueTeams: ${errorMsg}`);
         resolve({ error: `Exception in getLeagueTeams: ${errorMsg}` });
       }
     })();
@@ -178,6 +213,15 @@ export const getLeagueSettings = async (
       try {
         let league: unknown = {};
         const token = await getToken({ req, secret });
+        
+        // Validate token before making request
+        if (!validateToken(token)) {
+          const errorMsg = 'Invalid or missing authentication token';
+          console.error(`[yahooData] getLeagueSettings: ${errorMsg}`);
+          resolve({ error: errorMsg, statusCode: 401 });
+          return;
+        }
+
         const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
         const options = {
           hostname: 'fantasysports.yahooapis.com',
@@ -196,7 +240,7 @@ export const getLeagueSettings = async (
           
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
-            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            console.error(`[yahooData] getLeagueSettings HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
             const newError: ErrorResponse = { 
               error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
               statusCode: response.statusCode
@@ -213,14 +257,14 @@ export const getLeagueSettings = async (
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
             zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
               if (err) {
-                console.error(`Decompression error: ${err}`);
+                console.error(`[yahooData] getLeagueSettings Decompression error: ${err}`);
                 const newError: ErrorResponse = { error: `Decompression error: ${err}` };
                 resolve(newError);
                 return;
               }
               parser.parseString(dezipped.toString(), function (parseErr, result) {
                 if (parseErr) {
-                  console.error(`XML parsing error: ${parseErr}`);
+                  console.error(`[yahooData] getLeagueSettings XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
                   resolve(newError);
                   return;
@@ -233,7 +277,7 @@ export const getLeagueSettings = async (
         });
 
         request.on('error', (error) => {
-          console.error(`Network error on Get Request: ${error.message}`);
+          console.error(`[yahooData] getLeagueSettings Network error: ${error.message}`);
           const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
@@ -241,7 +285,7 @@ export const getLeagueSettings = async (
         request.end();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error(`Exception in getLeagueSettings: ${errorMsg}`);
+        console.error(`[yahooData] Exception in getLeagueSettings: ${errorMsg}`);
         resolve({ error: `Exception in getLeagueSettings: ${errorMsg}` });
       }
     })();
@@ -270,6 +314,15 @@ export const getWeekStats = async (
       try {
         let stats: unknown = {};
         const token = await getToken({ req, secret });
+        
+        // Validate token before making request
+        if (!validateToken(token)) {
+          const errorMsg = 'Invalid or missing authentication token';
+          console.error(`[yahooData] getWeekStats: ${errorMsg}`);
+          resolve({ error: errorMsg, statusCode: 401 });
+          return;
+        }
+
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
@@ -287,7 +340,7 @@ export const getWeekStats = async (
           
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
-            console.error(`HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
+            console.error(`[yahooData] getWeekStats HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
             const newError: ErrorResponse = { 
               error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
               statusCode: response.statusCode
@@ -304,14 +357,14 @@ export const getWeekStats = async (
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
             zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
               if (err) {
-                console.error(`Decompression error: ${err}`);
+                console.error(`[yahooData] getWeekStats Decompression error: ${err}`);
                 const newError: ErrorResponse = { error: `Decompression error: ${err}` };
                 resolve(newError);
                 return;
               }
               parser.parseString(dezipped.toString(), function (parseErr, result) {
                 if (parseErr) {
-                  console.error(`XML parsing error: ${parseErr}`);
+                  console.error(`[yahooData] getWeekStats XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
                   resolve(newError);
                   return;
@@ -324,7 +377,7 @@ export const getWeekStats = async (
         });
 
         request.on('error', (error) => {
-          console.error(`Network error on Get Request: ${error.message}`);
+          console.error(`[yahooData] getWeekStats Network error: ${error.message}`);
           const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
           resolve(newError);
         });
@@ -332,7 +385,7 @@ export const getWeekStats = async (
         request.end();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error(`Exception in getWeekStats: ${errorMsg}`);
+        console.error(`[yahooData] Exception in getWeekStats: ${errorMsg}`);
         resolve({ error: `Exception in getWeekStats: ${errorMsg}` });
       }
     })();
