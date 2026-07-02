@@ -1,5 +1,5 @@
-import { Session } from "next-auth"
-import { JWT } from "next-auth/jwt"
+import type { Session as _Session } from "next-auth"
+import type { JWT as _JWT } from "next-auth/jwt"
 
 /** Example on how to extend the built-in session types */
 declare module "next-auth" {
