@@ -846,6 +846,8 @@ export const getLeagueSettings = async (
  * Modelled after `getLeagueTeams` — handles gzip decompression, XML parsing,
  * HTTP/network/token errors, and resolves with the raw `fantasy_content`.
  *
+ * Diagnostic logging is controlled by NEXT_PUBLIC_DEBUG_STANDINGS=true.
+ *
  * @param req - The Next.js API request (needed for auth token extraction)
  * @param league_key - The Yahoo league key (e.g. "411.l.12345")
  * @returns The raw fantasy_content object, or an ErrorResponse on failure
@@ -868,11 +870,17 @@ export const getLeagueStandings = async (
           return;
         }
 
-        const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
+        const leagueKeyStr: string = Array.isArray(league_key) ? league_key[0] : league_key;
+        const apiPath: string = `/fantasy/v2/league/${leagueKeyStr}/standings`;
+        const apiUrl: string = `https://fantasysports.yahooapis.com${apiPath}`;
+
+        diagLog('[yahooData] getLeagueStandings', `Requesting standings for league key: "${leagueKeyStr}"`);
+        diagLog('[yahooData] getLeagueStandings', `Full URL: ${apiUrl}`);
+
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
-          path: `/fantasy/v2/league/${leagueKeyStr}/standings`,
+          path: apiPath,
           method: 'GET',
           headers: {
             Accept: '*/*',
@@ -883,15 +891,80 @@ export const getLeagueStandings = async (
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
+          const statusCode: number | undefined = response.statusCode;
+          const statusMessage: string | undefined = response.statusMessage;
 
-          // Check HTTP status code
-          if (response.statusCode && response.statusCode >= 400) {
-            console.error(
-              `[yahooData] getLeagueStandings HTTP Error: ${response.statusCode} - ${response.statusMessage}`
+          // Log HTTP response headers for diagnostic purposes
+          diagHttpResponse(
+            '[yahooData] getLeagueStandings',
+            'GET',
+            apiUrl,
+            statusCode,
+            statusMessage,
+            response.headers as Record<string, string | string[] | undefined>
+          );
+
+          // Log any redirect location header (3xx responses)
+          if (statusCode !== undefined && statusCode >= 300 && statusCode < 400) {
+            const location: string | string[] | undefined = response.headers['location'];
+            diagWarn(
+              '[yahooData] getLeagueStandings',
+              `Redirect detected (${statusCode}): Location=${String(location ?? 'N/A')}`
             );
+          }
+
+          // Log rate-limit headers if present
+          const rateLimitRemaining: string | string[] | undefined =
+            response.headers['x-ratelimit-requests-remaining'];
+          const retryAfter: string | string[] | undefined = response.headers['retry-after'];
+          if (rateLimitRemaining !== undefined) {
+            diagLog(
+              '[yahooData] getLeagueStandings',
+              `Rate-limit remaining: ${String(rateLimitRemaining)}`
+            );
+          }
+          if (retryAfter !== undefined) {
+            diagWarn(
+              '[yahooData] getLeagueStandings',
+              `Retry-After header present: ${String(retryAfter)} — possible rate limiting`
+            );
+          }
+
+          // Check HTTP status code — surface auth and not-found errors immediately
+          if (statusCode !== undefined && statusCode >= 400) {
+            const errMsg: string = `HTTP Error: ${statusCode} - ${statusMessage ?? 'Unknown'}`;
+            console.error(`[yahooData] getLeagueStandings ${errMsg}`);
+
+            if (statusCode === 401) {
+              console.error(
+                '[yahooData] getLeagueStandings: 401 Unauthorized — OAuth access token may be expired or invalid. ' +
+                'The user may need to re-authenticate.'
+              );
+            } else if (statusCode === 403) {
+              console.error(
+                '[yahooData] getLeagueStandings: 403 Forbidden — the authenticated user may not have ' +
+                `access to league "${leagueKeyStr}".`
+              );
+            } else if (statusCode === 404) {
+              console.error(
+                `[yahooData] getLeagueStandings: 404 Not Found — league key "${leagueKeyStr}" may be ` +
+                'incorrect or the league may not exist.'
+              );
+            } else if (statusCode === 429) {
+              console.error(
+                '[yahooData] getLeagueStandings: 429 Too Many Requests — Yahoo API rate limit exceeded. ' +
+                `Retry-After: ${String(retryAfter ?? 'not specified')}`
+              );
+            } else if (statusCode >= 500) {
+              console.error(
+                `[yahooData] getLeagueStandings: ${statusCode} Server Error — transient Yahoo API issue. ` +
+                'Consider retrying after a short delay.'
+              );
+            }
+
             const newError: ErrorResponse = {
-              error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
-              statusCode: response.statusCode,
+              error: errMsg,
+              statusCode,
             };
             resolve(newError);
             return;
@@ -902,22 +975,79 @@ export const getLeagueStandings = async (
           });
 
           response.on('end', function () {
-            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            const buffer: Buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+            diagLog(
+              '[yahooData] getLeagueStandings',
+              `Response body received: ${buffer.length} byte(s) (compressed)`
+            );
+
             zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
               if (err) {
+                // gunzip failed — the response may not be gzip-encoded (e.g. an HTML error page)
                 console.error(`[yahooData] getLeagueStandings Decompression error: ${err}`);
+                diagLog(
+                  '[yahooData] getLeagueStandings',
+                  `Raw (non-decompressed) response preview: ${buffer.slice(0, 500).toString('utf8')}`
+                );
                 const newError: ErrorResponse = { error: `Decompression error: ${err}` };
                 resolve(newError);
                 return;
               }
-              parser.parseString(dezipped.toString(), function (parseErr, result) {
+
+              const rawXml: string = dezipped.toString();
+              diagLog(
+                '[yahooData] getLeagueStandings',
+                `Decompressed response: ${dezipped.length} byte(s)`
+              );
+              diagDump('[yahooData] getLeagueStandings', 'Raw XML (first 2000 chars)', rawXml.slice(0, 2000));
+
+              parser.parseString(rawXml, function (parseErr, result) {
                 if (parseErr) {
                   console.error(`[yahooData] getLeagueStandings XML parsing error: ${parseErr}`);
+                  diagDump('[yahooData] getLeagueStandings', 'XML that failed to parse', rawXml.slice(0, 1000));
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
                   resolve(newError);
                   return;
                 }
-                league = (result as Record<string, unknown>).fantasy_content;
+
+                diagLog(
+                  '[yahooData] getLeagueStandings',
+                  `XML parsed successfully. Top-level keys: [${Object.keys(result as object).join(', ')}]`
+                );
+
+                const fantasyContent: unknown = (result as Record<string, unknown>).fantasy_content;
+
+                if (fantasyContent === undefined || fantasyContent === null) {
+                  console.error(
+                    '[yahooData] getLeagueStandings: fantasy_content is missing from parsed XML result. ' +
+                    `Top-level keys present: [${Object.keys(result as object).join(', ')}]`
+                  );
+                  diagDump('[yahooData] getLeagueStandings', 'Full parsed XML result', result);
+                } else {
+                  diagLog(
+                    '[yahooData] getLeagueStandings',
+                    `fantasy_content type: ${summariseValue(fantasyContent)}`
+                  );
+                  diagDump('[yahooData] getLeagueStandings', 'fantasy_content', fantasyContent);
+
+                  // Trace the expected path to help diagnose structural issues
+                  if (isDebugEnabled()) {
+                    console.log(
+                      '[yahooData] getLeagueStandings',
+                      traceObjectPath(fantasyContent, 'league.teams.team')
+                    );
+                    console.log(
+                      '[yahooData] getLeagueStandings',
+                      diagnoseObjectShape(
+                        fantasyContent,
+                        ['league'],
+                        'fantasy_content'
+                      )
+                    );
+                  }
+                }
+
+                league = fantasyContent;
                 resolve(league);
               });
             });
@@ -926,6 +1056,10 @@ export const getLeagueStandings = async (
 
         request.on('error', (error) => {
           console.error(`[yahooData] getLeagueStandings Network error: ${error.message}`);
+          diagError(
+            '[yahooData] getLeagueStandings',
+            `Network error details — name: ${error.name}, message: ${error.message}`
+          );
           const newError: ErrorResponse = {
             error: `Network error on Get Request: ${error.message}`,
           };
@@ -934,8 +1068,9 @@ export const getLeagueStandings = async (
 
         request.end();
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        const errorMsg: string = err instanceof Error ? err.message : 'Unknown error';
         console.error(`[yahooData] Exception in getLeagueStandings: ${errorMsg}`);
+        diagError('[yahooData] getLeagueStandings', `Exception stack: ${err instanceof Error ? err.stack ?? errorMsg : errorMsg}`);
         resolve({ error: `Exception in getLeagueStandings: ${errorMsg}` });
       }
     })();
@@ -949,6 +1084,9 @@ export const getLeagueStandings = async (
  * explicitArray: false returns a single object instead of an array when
  * there is only one element).
  *
+ * Comprehensive diagnostic logging is emitted at each validation step.
+ * Enable verbose output by setting NEXT_PUBLIC_DEBUG_STANDINGS=true.
+ *
  * @param fantasyContent - The fantasy_content object from the Yahoo standings API response
  * @returns An array of StandingsTeam objects, or null if the structure is invalid
  */
@@ -957,19 +1095,51 @@ export const extractStandingsFromLeagueContent = (
 ): StandingsTeam[] | null => {
   console.log('[yahooData] extractStandingsFromLeagueContent: called');
 
+  // ── Step 1: Validate the root fantasyContent value ───────────────────────
   if (!fantasyContent || typeof fantasyContent !== 'object') {
     console.error(
       '[yahooData] extractStandingsFromLeagueContent: fantasyContent is null or not an object',
       { received: typeof fantasyContent, value: fantasyContent }
     );
+    diagError(
+      '[yahooData] extractStandingsFromLeagueContent',
+      `STEP 1 FAILED — fantasyContent is ${fantasyContent === null ? 'null' : typeof fantasyContent}. ` +
+      'Expected a non-null object. This usually means the Yahoo API returned an empty or error response.'
+    );
     return null;
   }
+
+  diagLog(
+    '[yahooData] extractStandingsFromLeagueContent',
+    `STEP 1 OK — fantasyContent type: ${summariseValue(fantasyContent)}`
+  );
 
   console.log(
     '[yahooData] extractStandingsFromLeagueContent: fantasyContent top-level keys:',
     Object.keys(fantasyContent as object)
   );
 
+  // Log a full dump of the fantasyContent for deep inspection
+  diagDump('[yahooData] extractStandingsFromLeagueContent', 'fantasyContent (full)', fantasyContent);
+
+  // Emit an extraction trace for the expected path
+  diagExtractionTrace('[yahooData] extractStandingsFromLeagueContent', [
+    { path: 'fantasyContent', value: fantasyContent },
+    { path: 'fantasyContent.league', value: (fantasyContent as Record<string, unknown>).league },
+    {
+      path: 'fantasyContent.league.teams',
+      value: ((fantasyContent as Record<string, unknown>).league as Record<string, unknown> | undefined)?.teams,
+    },
+    {
+      path: 'fantasyContent.league.teams.team',
+      value: (
+        ((fantasyContent as Record<string, unknown>).league as Record<string, unknown> | undefined)
+          ?.teams as Record<string, unknown> | undefined
+      )?.team,
+    },
+  ]);
+
+  // ── Step 2: Validate league ───────────────────────────────────────────────
   const content = fantasyContent as LeagueStandingsContent;
   const league = content.league;
 
@@ -978,8 +1148,20 @@ export const extractStandingsFromLeagueContent = (
       '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content.',
       'Available keys:', Object.keys(fantasyContent as object)
     );
+    diagError(
+      '[yahooData] extractStandingsFromLeagueContent',
+      `STEP 2 FAILED — "league" property is absent from fantasy_content. ` +
+      `Available keys: [${Object.keys(fantasyContent as object).join(', ')}]. ` +
+      'This may indicate the league key is wrong or the API returned an unexpected structure.'
+    );
+    diagDump('[yahooData] extractStandingsFromLeagueContent', 'fantasyContent at failure point', fantasyContent);
     return null;
   }
+
+  diagLog(
+    '[yahooData] extractStandingsFromLeagueContent',
+    `STEP 2 OK — league found. Keys: [${Object.keys(league as object).join(', ')}]`
+  );
 
   console.log(
     '[yahooData] extractStandingsFromLeagueContent: league keys:',
@@ -989,61 +1171,136 @@ export const extractStandingsFromLeagueContent = (
     '| is_finished:', league.is_finished
   );
 
+  diagDump('[yahooData] extractStandingsFromLeagueContent', 'league object', league);
+
+  // ── Step 3: Validate teams container ─────────────────────────────────────
   const teamsContainer = league.teams;
   if (!teamsContainer) {
     console.error(
       '[yahooData] extractStandingsFromLeagueContent: league.teams is missing.',
       'League keys present:', Object.keys(league as object)
     );
+    diagError(
+      '[yahooData] extractStandingsFromLeagueContent',
+      `STEP 3 FAILED — "teams" property is absent from league object. ` +
+      `League keys present: [${Object.keys(league as object).join(', ')}]. ` +
+      'The standings endpoint may have returned league metadata without team data.'
+    );
+    diagDump('[yahooData] extractStandingsFromLeagueContent', 'league at failure point', league);
     return null;
   }
+
+  diagLog(
+    '[yahooData] extractStandingsFromLeagueContent',
+    `STEP 3 OK — teamsContainer found. Keys: [${Object.keys(teamsContainer as object).join(', ')}]`
+  );
 
   console.log(
     '[yahooData] extractStandingsFromLeagueContent: teamsContainer keys:',
     Object.keys(teamsContainer as object)
   );
 
+  diagDump('[yahooData] extractStandingsFromLeagueContent', 'teamsContainer', teamsContainer);
+
+  // ── Step 4: Validate team field ───────────────────────────────────────────
   const teamField = teamsContainer.team;
   if (!teamField) {
     console.error(
       '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing.',
       'teamsContainer keys:', Object.keys(teamsContainer as object)
     );
+    diagError(
+      '[yahooData] extractStandingsFromLeagueContent',
+      `STEP 4 FAILED — "team" property is absent from teams container. ` +
+      `teamsContainer keys: [${Object.keys(teamsContainer as object).join(', ')}]. ` +
+      'This may mean the league has no teams, or the API returned a "count" attribute only.'
+    );
+    diagDump('[yahooData] extractStandingsFromLeagueContent', 'teamsContainer at failure point', teamsContainer);
     return null;
   }
 
   const isArray: boolean = Array.isArray(teamField);
   const teamCount: number = isArray ? (teamField as StandingsTeam[]).length : 1;
+
+  diagLog(
+    '[yahooData] extractStandingsFromLeagueContent',
+    `STEP 4 OK — teamField found. isArray=${isArray}, count=${teamCount}, type=${summariseValue(teamField)}`
+  );
+
   console.log(
     `[yahooData] extractStandingsFromLeagueContent: found ${teamCount} team(s) (isArray=${isArray})`
   );
 
+  diagDump('[yahooData] extractStandingsFromLeagueContent', 'teamField (raw)', teamField);
+
+  // ── Step 5: Normalise to array ────────────────────────────────────────────
   // xml2js with explicitArray: false returns a single object when there is only one team
   const teams: StandingsTeam[] = isArray
     ? (teamField as StandingsTeam[])
     : [teamField as StandingsTeam];
 
-  // Validate that each team entry has the expected shape and log a warning for
-  // any entries that are missing the team_standings property.
+  // ── Step 6: Validate individual team entries ──────────────────────────────
   const validTeams: StandingsTeam[] = teams.filter((team: StandingsTeam, idx: number) => {
     if (!team || typeof team !== 'object') {
       console.warn(
         `[yahooData] extractStandingsFromLeagueContent: team at index ${idx} is not an object, skipping`
       );
+      diagWarn(
+        '[yahooData] extractStandingsFromLeagueContent',
+        `STEP 6 — team[${idx}] is not a valid object (${summariseValue(team)}), skipping`
+      );
       return false;
     }
+
+    // Log the shape of each team entry for traceability
+    diagLog(
+      '[yahooData] extractStandingsFromLeagueContent',
+      `team[${idx}] shape: ${summariseValue(team)}`
+    );
+
     if (!team.team_standings) {
       console.warn(
         `[yahooData] extractStandingsFromLeagueContent: team "${team.name ?? team.team_key}" (index ${idx}) is missing team_standings — it will still be included but standings columns will show "-"`,
         { team_key: team.team_key, team_id: team.team_id, name: team.name }
       );
+      diagWarn(
+        '[yahooData] extractStandingsFromLeagueContent',
+        `team[${idx}] "${team.name ?? team.team_key}" is missing team_standings. ` +
+        `Team keys present: [${Object.keys(team as object).join(', ')}]`
+      );
+      diagDump(
+        '[yahooData] extractStandingsFromLeagueContent',
+        `team[${idx}] full object`,
+        team
+      );
+    } else {
+      diagLog(
+        '[yahooData] extractStandingsFromLeagueContent',
+        `team[${idx}] "${team.name ?? team.team_key}" has team_standings. ` +
+        `rank=${team.team_standings.rank ?? 'N/A'} ` +
+        `wins=${team.team_standings.outcome_totals?.wins ?? 'N/A'} ` +
+        `losses=${team.team_standings.outcome_totals?.losses ?? 'N/A'}`
+      );
     }
+
     return true;
   });
 
   console.log(
     `[yahooData] extractStandingsFromLeagueContent: returning ${validTeams.length} valid team(s)`
   );
+
+  diagLog(
+    '[yahooData] extractStandingsFromLeagueContent',
+    `STEP 6 COMPLETE — ${validTeams.length} valid team(s) out of ${teams.length} total`
+  );
+
+  if (validTeams.length === 0) {
+    diagError(
+      '[yahooData] extractStandingsFromLeagueContent',
+      `All ${teams.length} team(s) were filtered out during validation. Returning null.`
+    );
+  }
 
   return validTeams.length > 0 ? validTeams : null;
 };
