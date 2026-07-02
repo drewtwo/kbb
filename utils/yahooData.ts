@@ -4,7 +4,7 @@ import zlib from 'zlib';
 import xml2js from 'xml2js';
 import { NextApiRequest } from 'next';
 
-const secret = process.env.SECRET;
+const secret = process.env.NEXTAUTH_SECRET;
 
 const parserOptions = { explicitArray: false };
 
