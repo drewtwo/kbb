@@ -2,12 +2,14 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import {
   getLeagueTeams,
   getLeagueSettings,
+  getLeagueStandings,
   getLeagueAggregatedStats,
+  extractStandingsFromLeagueContent,
   isErrorResponse,
   SEASON_START_WEEK,
   SEASON_END_WEEK,
 } from '../../../utils/yahooData';
-import type { LeagueAggregatedStats } from '../../../utils/yahooData';
+import type { LeagueAggregatedStats, StandingsTeam, LeagueStandingsContent } from '../../../utils/yahooData';
 
 type ResponseData = {
   name?: string;
@@ -16,6 +18,10 @@ type ResponseData = {
   settings?: unknown;
   /** Aggregated stats for every team across all weeks of the season. */
   aggregated_stats?: LeagueAggregatedStats;
+  /** League standings — one entry per team, sorted by rank. */
+  standings?: StandingsTeam[];
+  /** True when the season has finished (derived from the standings response). */
+  is_finished?: boolean;
 };
 
 export default async function teams(
@@ -29,8 +35,12 @@ export default async function teams(
       return;
     }
 
-    const league_teams = await getLeagueTeams(req, id);
-    const league_settings = await getLeagueSettings(req, id);
+    // Fetch teams, settings, and standings in parallel
+    const [league_teams, league_settings, league_standings] = await Promise.all([
+      getLeagueTeams(req, id),
+      getLeagueSettings(req, id),
+      getLeagueStandings(req, id),
+    ]);
 
     // Surface any error returned by the Yahoo API utilities
     if (isErrorResponse(league_teams)) {
@@ -47,6 +57,30 @@ export default async function teams(
         typeof league_settings.statusCode === 'number' ? league_settings.statusCode : 500;
       res.status(statusCode).json({ error: `Failed to load league settings: ${league_settings.error}` });
       return;
+    }
+
+    // Extract standings — non-fatal if it fails
+    let standings: StandingsTeam[] | undefined;
+    let is_finished: boolean | undefined;
+
+    if (isErrorResponse(league_standings)) {
+      console.warn(
+        '[leagueinfo API] getLeagueStandings returned error (non-fatal):',
+        league_standings.error
+      );
+    } else {
+      const extractedStandings = extractStandingsFromLeagueContent(league_standings);
+      if (extractedStandings) {
+        standings = extractedStandings;
+      } else {
+        console.warn('[leagueinfo API] extractStandingsFromLeagueContent returned null — omitting standings');
+      }
+
+      // Extract is_finished from the standings league metadata
+      const standingsContent = league_standings as LeagueStandingsContent;
+      if (standingsContent?.league?.is_finished !== undefined) {
+        is_finished = standingsContent.league.is_finished === '1';
+      }
     }
 
     // Aggregate weekly stats for all teams across all weeks of the season.
@@ -76,6 +110,8 @@ export default async function teams(
       teams: league_teams,
       settings: league_settings,
       ...(aggregated_stats ? { aggregated_stats } : {}),
+      ...(standings ? { standings } : {}),
+      ...(is_finished !== undefined ? { is_finished } : {}),
     });
   } catch (_err) {
     const message = _err instanceof Error ? _err.message : 'Unknown error';
