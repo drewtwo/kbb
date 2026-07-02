@@ -327,24 +327,24 @@ export const extractStatsFromWeekContent = (
   return Array.isArray(statField) ? statField : [statField];
 };
 
-// ─── Season week-range constants ────────────────────────────────────────────
+// ─── Season week-range constants (deprecated) ───────────────────────────────
 //
-// These constants define the inclusive week range used when aggregating stats
-// across the full season.  Override them via environment variables so that
-// different seasons or league configurations can be supported without code
-// changes.
+// These constants were used by the now-deprecated getLeagueAggregatedStats
+// function to define the inclusive week range for multi-week stat aggregation.
+// Standings are now fetched directly from the /standings endpoint via
+// getLeagueStandings, so these constants are no longer used by the application.
 //
-//   NEXT_PUBLIC_SEASON_START_WEEK  – first week to include (default: 1)
-//   NEXT_PUBLIC_SEASON_END_WEEK    – last week to include  (default: 15)
+// They are retained here for backwards compatibility with any external callers
+// but should not be referenced in new code.
 
-/** First week of the season to include in multi-week aggregation (1-based). */
+/** @deprecated No longer used. Standings are fetched directly from the /standings endpoint. */
 export const SEASON_START_WEEK: number = (() => {
   const raw: string | undefined = process.env.NEXT_PUBLIC_SEASON_START_WEEK;
   const parsed: number = raw ? parseInt(raw, 10) : NaN;
   return !isNaN(parsed) && parsed > 0 ? parsed : 1;
 })();
 
-/** Last week of the season to include in multi-week aggregation (1-based). */
+/** @deprecated No longer used. Standings are fetched directly from the /standings endpoint. */
 export const SEASON_END_WEEK: number = (() => {
   const raw: string | undefined = process.env.NEXT_PUBLIC_SEASON_END_WEEK;
   const parsed: number = raw ? parseInt(raw, 10) : NaN;
@@ -955,76 +955,46 @@ export const getLeagueStandings = async (
 export const extractStandingsFromLeagueContent = (
   fantasyContent: unknown
 ): StandingsTeam[] | null => {
-  console.log('[yahooData] extractStandingsFromLeagueContent: called');
-
   if (!fantasyContent || typeof fantasyContent !== 'object') {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: fantasyContent is null or not an object',
-      { received: typeof fantasyContent, value: fantasyContent }
+      '[yahooData] extractStandingsFromLeagueContent: fantasyContent is null or not an object'
     );
     return null;
   }
-
-  console.log(
-    '[yahooData] extractStandingsFromLeagueContent: fantasyContent top-level keys:',
-    Object.keys(fantasyContent as object)
-  );
 
   const content = fantasyContent as LeagueStandingsContent;
   const league = content.league;
 
   if (!league) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content.',
-      'Available keys:', Object.keys(fantasyContent as object)
+      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content'
     );
     return null;
   }
-
-  console.log(
-    '[yahooData] extractStandingsFromLeagueContent: league keys:',
-    Object.keys(league as object),
-    '| league_key:', league.league_key,
-    '| name:', league.name,
-    '| is_finished:', league.is_finished
-  );
 
   const teamsContainer = league.teams;
   if (!teamsContainer) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing.',
-      'League keys present:', Object.keys(league as object)
+      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing'
     );
     return null;
   }
-
-  console.log(
-    '[yahooData] extractStandingsFromLeagueContent: teamsContainer keys:',
-    Object.keys(teamsContainer as object)
-  );
 
   const teamField = teamsContainer.team;
   if (!teamField) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing.',
-      'teamsContainer keys:', Object.keys(teamsContainer as object)
+      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing'
     );
     return null;
   }
 
-  const isArray: boolean = Array.isArray(teamField);
-  const teamCount: number = isArray ? (teamField as StandingsTeam[]).length : 1;
-  console.log(
-    `[yahooData] extractStandingsFromLeagueContent: found ${teamCount} team(s) (isArray=${isArray})`
-  );
-
   // xml2js with explicitArray: false returns a single object when there is only one team
-  const teams: StandingsTeam[] = isArray
+  const teams: StandingsTeam[] = Array.isArray(teamField)
     ? (teamField as StandingsTeam[])
     : [teamField as StandingsTeam];
 
-  // Validate that each team entry has the expected shape and log a warning for
-  // any entries that are missing the team_standings property.
+  // Filter out non-object entries; warn for missing team_standings (still included
+  // so standings columns can show "-").
   const validTeams: StandingsTeam[] = teams.filter((team: StandingsTeam, idx: number) => {
     if (!team || typeof team !== 'object') {
       console.warn(
@@ -1034,16 +1004,11 @@ export const extractStandingsFromLeagueContent = (
     }
     if (!team.team_standings) {
       console.warn(
-        `[yahooData] extractStandingsFromLeagueContent: team "${team.name ?? team.team_key}" (index ${idx}) is missing team_standings — it will still be included but standings columns will show "-"`,
-        { team_key: team.team_key, team_id: team.team_id, name: team.name }
+        `[yahooData] extractStandingsFromLeagueContent: team "${team.name ?? team.team_key}" is missing team_standings`
       );
     }
     return true;
   });
-
-  console.log(
-    `[yahooData] extractStandingsFromLeagueContent: returning ${validTeams.length} valid team(s)`
-  );
 
   return validTeams.length > 0 ? validTeams : null;
 };
