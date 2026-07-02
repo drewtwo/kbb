@@ -1,7 +1,14 @@
 import { useRouter } from 'next/router';
 import Layout from '../../../../components/layout';
+import ErrorDisplay from '../../../../components/error-display';
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
+import {
+  extractStatCategoriesFromLeagueSettings,
+  extractStatsFromWeekContent,
+  StatCategory,
+  StatEntry,
+} from '../../../../utils/yahooData';
 
 const StatCard = dynamic(() => import('../../../../components/statcard'), {
   ssr: false,
@@ -9,125 +16,279 @@ const StatCard = dynamic(() => import('../../../../components/statcard'), {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-interface Stat {
-  stat_id: string;
-  value: string;
+// ─── Types for raw API responses ─────────────────────────────────────────────
+
+interface WeeklyStatsApiResponse {
+  stats_by_week?: unknown[];
+  error?: string;
 }
 
-interface WeekStats {
-  stats: {
-    stat: Stat[];
-  };
+interface LeagueInfoApiResponse {
+  settings?: unknown;
+  teams?: unknown;
+  error?: string;
 }
 
-interface WeeklyStatsData {
-  stats_by_week: WeekStats[];
+// ─── Normalised internal types ────────────────────────────────────────────────
+
+interface NormalisedWeekStats {
+  stats: StatEntry[];
 }
 
-interface StatCategory {
-  stat_id: string;
-  name: string;
-  display_name: string;
+interface NormalisedWeeklyStatsData {
+  stats_by_week: NormalisedWeekStats[];
 }
 
-export function generateChartData(stat_id: string, weekly_stats_data: WeeklyStatsData): (string | number)[] {
-  const dataset: (string | number)[] = [];
-  weekly_stats_data.stats_by_week.forEach((stats) => {
-    stats.stats.stat.forEach((stat) => {
-      if (stat.stat_id === stat_id) {
-        if (stat_id === '60') {
-          const value = stat.value.split('/')[0];
-          dataset.push(value);
-        } else {
-          dataset.push(stat.value);
-        }
-      }
-    });
-  });
-  console.log('stat id: ' + stat_id);
+// ─── Chart / stat helpers ─────────────────────────────────────────────────────
+
+/**
+ * Safely extracts the numeric value for a given stat_id from a stats array.
+ * Returns '0' when the stat is not found so downstream Number() calls are safe.
+ */
+function getStatValue(statId: string, stats: StatEntry[]): string {
+  const entry = stats.find((s: StatEntry) => s.stat_id === statId);
+  if (!entry) return '0';
+  if (statId === '60') {
+    return entry.value?.split('/')[0] ?? '0';
+  }
+  return entry.value ?? '0';
+}
+
+export function generateChartData(
+  stat_id: string,
+  weekly_stats_data: NormalisedWeeklyStatsData
+): (string | number)[] {
+  if (
+    !weekly_stats_data ||
+    !Array.isArray(weekly_stats_data.stats_by_week) ||
+    weekly_stats_data.stats_by_week.length === 0
+  ) {
+    return [];
+  }
+
+  const dataset: (string | number)[] = weekly_stats_data.stats_by_week.map(
+    (weekEntry: NormalisedWeekStats) => {
+      if (!weekEntry || !Array.isArray(weekEntry.stats)) return '0';
+      return getStatValue(stat_id, weekEntry.stats);
+    }
+  );
+
   return dataset.reverse();
 }
 
-export function generateDelta(stat_id: string, weekly_stats_data: WeeklyStatsData): number | string {
-  let this_week_value: string | number = 0;
-  let last_week_value: string | number = 0;
-  const this_week = weekly_stats_data.stats_by_week[0];
-  const last_week = weekly_stats_data.stats_by_week[1];
-  this_week.stats.stat.forEach((stat) => {
-    if (stat.stat_id === stat_id) {
-      if (stat_id === '60') {
-        const value = stat.value.split('/')[0];
-        this_week_value = value;
-      } else {
-        this_week_value = stat.value;
-      }
-    }
-  });
-  last_week.stats.stat.forEach((stat) => {
-    if (stat.stat_id === stat_id) {
-      if (stat_id === '60') {
-        const value = stat.value.split('/')[0];
-        last_week_value = value;
-      } else {
-        last_week_value = stat.value;
-      }
-    }
-  });
-  const delta = Number(this_week_value) - Number(last_week_value);
+export function generateDelta(
+  stat_id: string,
+  weekly_stats_data: NormalisedWeeklyStatsData
+): number | string {
+  if (
+    !weekly_stats_data ||
+    !Array.isArray(weekly_stats_data.stats_by_week) ||
+    weekly_stats_data.stats_by_week.length < 2
+  ) {
+    return 0;
+  }
+
+  const thisWeek = weekly_stats_data.stats_by_week[0];
+  const lastWeek = weekly_stats_data.stats_by_week[1];
+
+  if (
+    !thisWeek ||
+    !Array.isArray(thisWeek.stats) ||
+    !lastWeek ||
+    !Array.isArray(lastWeek.stats)
+  ) {
+    return 0;
+  }
+
+  const thisWeekValue = getStatValue(stat_id, thisWeek.stats);
+  const lastWeekValue = getStatValue(stat_id, lastWeek.stats);
+
+  const delta = Number(thisWeekValue) - Number(lastWeekValue);
   return delta % 1 === 0 ? delta : delta.toFixed(3);
 }
 
-export function generateCurrentValue(stat_id: string, weekly_stats_data: WeeklyStatsData): string {
-  const this_week = weekly_stats_data.stats_by_week[0];
-  let value = '';
-  this_week.stats.stat.forEach((stat) => {
-    if (stat.stat_id === stat_id) {
-      value = stat.value;
-      console.log(stat.value);
-    }
-  });
-  return value;
+export function generateCurrentValue(
+  stat_id: string,
+  weekly_stats_data: NormalisedWeeklyStatsData
+): string {
+  if (
+    !weekly_stats_data ||
+    !Array.isArray(weekly_stats_data.stats_by_week) ||
+    weekly_stats_data.stats_by_week.length === 0
+  ) {
+    return '0';
+  }
+
+  const thisWeek = weekly_stats_data.stats_by_week[0];
+  if (!thisWeek || !Array.isArray(thisWeek.stats)) return '0';
+
+  const entry = thisWeek.stats.find((s: StatEntry) => s.stat_id === stat_id);
+  return entry?.value ?? '0';
 }
+
+// ─── Normalise weekly stats API response ─────────────────────────────────────
+
+/**
+ * Converts the raw API response from /api/teamstats into the normalised
+ * NormalisedWeeklyStatsData shape used by the chart helpers above.
+ * Returns null when the data is missing or malformed.
+ */
+function normaliseWeeklyStats(
+  raw: WeeklyStatsApiResponse | null | undefined
+): NormalisedWeeklyStatsData | null {
+  if (!raw) return null;
+  if (raw.error) {
+    console.error('[Team page] Weekly stats API returned error:', raw.error);
+    return null;
+  }
+  if (!Array.isArray(raw.stats_by_week) || raw.stats_by_week.length === 0) {
+    console.error('[Team page] Weekly stats API: stats_by_week is missing or empty');
+    return null;
+  }
+
+  const normalisedWeeks: NormalisedWeekStats[] = [];
+
+  for (const weekContent of raw.stats_by_week) {
+    const stats = extractStatsFromWeekContent(weekContent);
+    if (!stats) {
+      // Skip weeks with malformed data rather than crashing
+      console.warn('[Team page] Skipping malformed week entry in stats_by_week');
+      continue;
+    }
+    normalisedWeeks.push({ stats });
+  }
+
+  if (normalisedWeeks.length === 0) {
+    console.error('[Team page] No valid week entries found in stats_by_week');
+    return null;
+  }
+
+  return { stats_by_week: normalisedWeeks };
+}
+
+// ─── Page component ───────────────────────────────────────────────────────────
 
 const Team = () => {
   const router = useRouter();
   const { gameid, teamid } = router.query;
-  const gameIdStr = Array.isArray(gameid) ? gameid[0] : gameid;
-  const teamIdStr = Array.isArray(teamid) ? teamid[0] : teamid;
+  const gameIdStr: string | undefined = Array.isArray(gameid) ? gameid[0] : gameid;
+  const teamIdStr: string | undefined = Array.isArray(teamid) ? teamid[0] : teamid;
+
   const league_info_route = `/api/leagueinfo/${gameIdStr}`;
   const team_stats_route = `/api/teamstats/${gameIdStr}.t.${teamIdStr}`;
-  const stats_response = useSwr(gameIdStr ? league_info_route : null, fetcher);
-  const weekly_stat_response = useSwr(teamIdStr ? team_stats_route : null, fetcher);
 
-  if (stats_response.error || weekly_stat_response.error)
-    return <div>Failed to load teams</div>;
-  if (!stats_response.data || !weekly_stat_response.data)
-    return <div>Loading...</div>;
+  const stats_response = useSwr<LeagueInfoApiResponse>(
+    gameIdStr ? league_info_route : null,
+    fetcher
+  );
+  const weekly_stat_response = useSwr<WeeklyStatsApiResponse>(
+    teamIdStr ? team_stats_route : null,
+    fetcher
+  );
 
+  // ── Network / SWR errors ──────────────────────────────────────────────────
+  if (stats_response.error) {
+    return (
+      <Layout>
+        <ErrorDisplay
+          title="Failed to load league info"
+          message="There was a network error loading league settings. Please try refreshing the page."
+        />
+      </Layout>
+    );
+  }
+
+  if (weekly_stat_response.error) {
+    return (
+      <Layout>
+        <ErrorDisplay
+          title="Failed to load team stats"
+          message="There was a network error loading team statistics. Please try refreshing the page."
+        />
+      </Layout>
+    );
+  }
+
+  // ── Loading state ─────────────────────────────────────────────────────────
+  if (!stats_response.data || !weekly_stat_response.data) {
+    return (
+      <Layout>
+        <div>Loading...</div>
+      </Layout>
+    );
+  }
+
+  // ── API-level errors returned in the JSON body ────────────────────────────
+  if (stats_response.data.error) {
+    return (
+      <Layout>
+        <ErrorDisplay
+          title="League info unavailable"
+          message={stats_response.data.error}
+        />
+      </Layout>
+    );
+  }
+
+  if (weekly_stat_response.data.error) {
+    return (
+      <Layout>
+        <ErrorDisplay
+          title="Team stats unavailable"
+          message={weekly_stat_response.data.error}
+        />
+      </Layout>
+    );
+  }
+
+  // ── Extract stat categories from league settings ──────────────────────────
+  const statCategories: StatCategory[] | null =
+    extractStatCategoriesFromLeagueSettings(stats_response.data.settings);
+
+  if (!statCategories) {
+    return (
+      <Layout>
+        <ErrorDisplay
+          title="League settings unavailable"
+          message="Could not read stat categories from the league settings. The data returned by Yahoo may be in an unexpected format."
+        />
+      </Layout>
+    );
+  }
+
+  // ── Normalise weekly stats ────────────────────────────────────────────────
+  const weeklyStatsData: NormalisedWeeklyStatsData | null = normaliseWeeklyStats(
+    weekly_stat_response.data
+  );
+
+  if (!weeklyStatsData) {
+    return (
+      <Layout>
+        <ErrorDisplay
+          title="Team stats unavailable"
+          message="Could not read weekly statistics for this team. The data returned by Yahoo may be in an unexpected format."
+        />
+      </Layout>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Layout>
       <p>League Stats</p>
       <div>
-        {stats_response.data.settings.stat_categories.stats.stat.map((stat: StatCategory) => (
-          <div key={stat.name}>
+        {statCategories.map((stat: StatCategory) => (
+          <div key={stat.stat_id}>
             <StatCard
               name={stat.name}
               shortName={stat.display_name}
-              delta={generateDelta(stat.stat_id, weekly_stat_response.data)}
+              delta={generateDelta(stat.stat_id, weeklyStatsData)}
               deltaDirection={
-                Number(generateDelta(stat.stat_id, weekly_stat_response.data)) > 0
-                  ? 1
-                  : -1
+                Number(generateDelta(stat.stat_id, weeklyStatsData)) > 0 ? 1 : -1
               }
-              currentValue={generateCurrentValue(
-                stat.stat_id,
-                weekly_stat_response.data
-              )}
-              chartData={generateChartData(
-                stat.stat_id,
-                weekly_stat_response.data
-              )}
-            ></StatCard>
+              currentValue={generateCurrentValue(stat.stat_id, weeklyStatsData)}
+              chartData={generateChartData(stat.stat_id, weeklyStatsData)}
+            />
           </div>
         ))}
       </div>
