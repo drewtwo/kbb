@@ -3,6 +3,16 @@ import https from 'https';
 import zlib from 'zlib';
 import xml2js from 'xml2js';
 import { NextApiRequest } from 'next';
+import {
+  diagLog,
+  diagWarn,
+  diagError,
+  diagDump,
+  diagHttpResponse,
+  diagExtractionTrace,
+  isDebugEnabled,
+} from './diagnosticLogger';
+import { dumpObject, summariseValue, traceObjectPath, diagnoseObjectShape } from './objectDumper';
 
 const secret = process.env.NEXTAUTH_SECRET;
 
