@@ -1,11 +1,11 @@
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
-import leagueStyles from '../components/leagues.module.css';
+import teamCardStyles from '../components/teamcard.module.css';
 import Layout from '../components/layout';
 import type { YahooGame, YahooTeam } from '../types/yahooFantasy';
 
-const LeagueCard = dynamic(() => import('../components/leaguecard'), {
+const TeamCard = dynamic(() => import('../components/teamcard'), {
   ssr: false,
 });
 
@@ -31,7 +31,7 @@ export default function Index() {
   if (status === 'loading') {
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
+        <div className={teamCardStyles.errorContainer}>
           <p>Loading authentication...</p>
         </div>
       </Layout>
@@ -41,8 +41,8 @@ export default function Index() {
   if (status === 'unauthenticated') {
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>Please sign in to view your leagues</p>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>Please sign in to view your leagues</p>
         </div>
       </Layout>
     );
@@ -53,8 +53,8 @@ export default function Index() {
     console.error('[teamstable] Session authenticated but user data missing');
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>Session error: User data not available. Please sign in again.</p>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>Session error: User data not available. Please sign in again.</p>
         </div>
       </Layout>
     );
@@ -65,8 +65,8 @@ export default function Index() {
     console.error('[teamstable] Session authenticated but accessToken missing');
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>Authentication error: Access token not available. Please sign in again.</p>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>Authentication error: Access token not available. Please sign in again.</p>
         </div>
       </Layout>
     );
@@ -76,8 +76,8 @@ export default function Index() {
     console.error('[teamstable] Failed to load leagues:', error);
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>Failed to load leagues. Please try again later.</p>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>Failed to load leagues. Please try again later.</p>
         </div>
       </Layout>
     );
@@ -86,7 +86,7 @@ export default function Index() {
   if (!data) {
     return (
       <Layout>
-        <div className={leagueStyles.loadingContainer}>
+        <div className={teamCardStyles.loadingContainer}>
           <p>Loading your leagues...</p>
         </div>
       </Layout>
@@ -102,8 +102,8 @@ export default function Index() {
     if (errorData.statusCode === 401) {
       return (
         <Layout>
-          <div className={leagueStyles.errorContainer}>
-            <p className={leagueStyles.errorText}>
+          <div className={teamCardStyles.errorContainer}>
+            <p className={teamCardStyles.errorText}>
               Authentication error: Your session has expired. Please sign in again.
             </p>
           </div>
@@ -113,8 +113,8 @@ export default function Index() {
     
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>
             Error loading leagues: {errorData.error || 'Unknown error'}
           </p>
         </div>
@@ -127,8 +127,8 @@ export default function Index() {
     console.error('[teamstable] Invalid data structure: missing or invalid games array', data);
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>
             Error: Invalid response format from server. Please try again later.
           </p>
         </div>
@@ -140,8 +140,8 @@ export default function Index() {
   if (data.games.length === 0) {
     return (
       <Layout>
-        <div className={leagueStyles.errorContainer}>
-          <p className={leagueStyles.errorText}>No leagues found. Please check your Yahoo Fantasy account.</p>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>No leagues found. Please check your Yahoo Fantasy account.</p>
         </div>
       </Layout>
     );
@@ -149,7 +149,7 @@ export default function Index() {
 
   return (
     <Layout>
-      <div className={leagueStyles.grid}>
+      <div className={teamCardStyles.grid}>
         {data.games.map((game: YahooGame) => {
           // Validate game has required properties
           if (!game || !game.teams || !game.teams.team) {
@@ -165,19 +165,19 @@ export default function Index() {
                 return null;
               }
               return (
-                <LeagueCard
+                <TeamCard
                   key={inner_team.team_key}
                   game={game}
                   team={inner_team}
-                ></LeagueCard>
+                ></TeamCard>
               );
             })
           ) : (
-            <LeagueCard
+            <TeamCard
               key={game.teams.team.team_key}
               game={game}
               team={game.teams.team as YahooTeam}
-            ></LeagueCard>
+            ></TeamCard>
           );
         })}
       </div>
