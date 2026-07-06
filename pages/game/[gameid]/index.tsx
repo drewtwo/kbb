@@ -1,9 +1,10 @@
 import { useRouter } from 'next/router';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
-import type { LeagueAggregatedStats, StandingsTeam, TeamData } from '../../../utils/yahooData';
+import type { LeagueAggregatedStats, StandingsTeam, TeamData, StatCategory } from '../../../utils/yahooData';
 import StandingsTable from '../../../components/standings-table';
 import TeamsListFallback from '../../../components/teams-list-fallback';
+import LeagueStatsChart from '../../../components/league-stats-chart';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -31,6 +32,11 @@ interface GameInfoData {
    * navigate to individual team stats pages.
    */
   extracted_teams?: TeamData[];
+  /**
+   * Stat categories defined for this league, extracted from the settings response.
+   * Used to populate the dropdown in the league stats chart.
+   */
+  stat_categories?: StatCategory[];
 }
 
 /**
@@ -146,6 +152,9 @@ const League = () => {
   // is_finished is now a boolean field returned directly by the API route
   const isFinished: boolean = data.is_finished === true;
   const aggregatedStats: LeagueAggregatedStats | undefined = data.aggregated_stats;
+  const statCategories: StatCategory[] = Array.isArray(data.stat_categories)
+    ? data.stat_categories
+    : [];
 
   if (aggregatedStats) {
     console.log(
@@ -186,6 +195,12 @@ const League = () => {
         <TeamsListFallback
           gameId={gameIdStr}
           teams={extractedTeams ?? []}
+        />
+      )}
+      {aggregatedStats && statCategories.length > 0 && (
+        <LeagueStatsChart
+          aggregatedStats={aggregatedStats}
+          statCategories={statCategories}
         />
       )}
     </Layout>

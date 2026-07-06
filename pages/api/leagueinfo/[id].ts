@@ -4,9 +4,10 @@ import {
   getLeagueSettings,
   getLeagueStandings,
   extractTeamsFromLeagueContent,
+  extractStatCategoriesFromLeagueSettings,
   isErrorResponse,
 } from '../../../utils/yahooData';
-import type { StandingsTeam, TeamData } from '../../../utils/yahooData';
+import type { StandingsTeam, TeamData, StatCategory } from '../../../utils/yahooData';
 
 type ResponseData = {
   name?: string;
@@ -23,6 +24,11 @@ type ResponseData = {
    * a fallback team list with links to individual team stats pages.
    */
   extracted_teams?: TeamData[];
+  /**
+   * Stat categories defined for this league, extracted from the settings response.
+   * Used to populate the dropdown in the league stats chart.
+   */
+  stat_categories?: StatCategory[];
 };
 
 export default async function teams(
@@ -80,6 +86,18 @@ export default async function teams(
       );
     }
 
+    // Extract stat categories from the settings response
+    const stat_categories: StatCategory[] | null = extractStatCategoriesFromLeagueSettings(league_settings);
+    if (stat_categories) {
+      console.log(
+        `[leagueinfo API] stat_categories: ${stat_categories.length} category(ies) extracted from league_settings`
+      );
+    } else {
+      console.warn(
+        '[leagueinfo API] extractStatCategoriesFromLeagueSettings returned null — chart dropdown will be empty'
+      );
+    }
+
     // Standings are non-fatal — if the call failed we omit them from the response
     let standings: StandingsTeam[] | undefined;
     let is_finished: boolean = false;
@@ -121,13 +139,15 @@ export default async function teams(
       ...(standings ? { standings } : {}),
       is_finished,
       ...(extracted_teams ? { extracted_teams } : {}),
+      ...(stat_categories ? { stat_categories } : {}),
     };
 
     console.log(
       '[leagueinfo API] Sending response — standings present:', !!standings,
       '| standings count:', standings?.length ?? 0,
       '| is_finished:', is_finished,
-      '| extracted_teams count:', extracted_teams?.length ?? 0
+      '| extracted_teams count:', extracted_teams?.length ?? 0,
+      '| stat_categories count:', stat_categories?.length ?? 0
     );
 
     res.status(200).json(responsePayload);

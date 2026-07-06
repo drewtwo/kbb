@@ -1414,3 +1414,100 @@ export const getWeekStats = async (
     })();
   });
 };
+
+// ─── Chart data utilities ────────────────────────────────────────────────────
+
+/**
+ * A palette of distinct colours used to colour each team's bar in the chart.
+ * Colours cycle when there are more teams than palette entries.
+ */
+export const TEAM_COLORS: string[] = [
+  'rgba(0, 112, 243, 0.8)',
+  'rgba(220, 53, 69, 0.8)',
+  'rgba(40, 167, 69, 0.8)',
+  'rgba(255, 193, 7, 0.8)',
+  'rgba(111, 66, 193, 0.8)',
+  'rgba(23, 162, 184, 0.8)',
+  'rgba(253, 126, 20, 0.8)',
+  'rgba(102, 16, 242, 0.8)',
+  'rgba(32, 201, 151, 0.8)',
+  'rgba(214, 51, 132, 0.8)',
+  'rgba(52, 58, 64, 0.8)',
+  'rgba(0, 123, 255, 0.8)',
+];
+
+/**
+ * The shape of a Chart.js dataset object used by the Bar chart.
+ */
+export interface ChartDataset {
+  label: string;
+  data: number[];
+  backgroundColor: string[];
+  borderColor: string[];
+  borderWidth: number;
+}
+
+/**
+ * The shape of the data object passed to a Chart.js Bar chart.
+ */
+export interface ChartData {
+  labels: string[];
+  datasets: ChartDataset[];
+}
+
+/**
+ * Builds a Chart.js-compatible data object for a bar chart comparing all
+ * teams on a single stat category.
+ *
+ * Teams are sorted by their stat value descending so the chart is easy to read.
+ *
+ * @param aggregatedStats - The league-wide aggregated stats object
+ * @param statId - The stat_id to chart (e.g. "7" for HR)
+ * @param colors - Array of colour strings to cycle through for each bar
+ * @returns A Chart.js data object ready to pass to a <Bar> component
+ */
+export const buildChartData = (
+  aggregatedStats: LeagueAggregatedStats,
+  statId: string,
+  colors: string[]
+): ChartData => {
+  const teamEntries: { name: string; value: number }[] = Object.values(
+    aggregatedStats.teams
+  ).map((team: AggregatedTeamStats) => ({
+    name: team.team_name,
+    value: team.stats[statId] ?? 0,
+  }));
+
+  // Sort descending by value so the highest-performing team appears first
+  teamEntries.sort(
+    (a: { name: string; value: number }, b: { name: string; value: number }) =>
+      b.value - a.value
+  );
+
+  const labels: string[] = teamEntries.map(
+    (entry: { name: string; value: number }) => entry.name
+  );
+  const values: number[] = teamEntries.map(
+    (entry: { name: string; value: number }) => entry.value
+  );
+  const backgroundColors: string[] = teamEntries.map(
+    (_entry: { name: string; value: number }, idx: number) =>
+      colors[idx % colors.length]
+  );
+  const borderColors: string[] = backgroundColors.map((color: string) =>
+    color.replace('0.8)', '1)')
+  );
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: `Stat ${statId}`,
+        data: values,
+        backgroundColor: backgroundColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+      },
+    ],
+  };
+};
