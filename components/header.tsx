@@ -65,13 +65,6 @@ export default function Header() {
       </div>
       <nav>
         <ul className={styles.navItems}>
-          {session && (
-            <li className={styles.navItem}>
-              <Link href="/teamstable">
-                Teams
-              </Link>
-            </li>
-          )}
         </ul>
       </nav>
     </header>
