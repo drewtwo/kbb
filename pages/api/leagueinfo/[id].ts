@@ -4,11 +4,18 @@ import {
   getLeagueSettings,
   getLeagueStandings,
   getLeagueWeeklyAggregatedStats,
+  getLeagueAllTeamsWeeklyStats,
   extractTeamsFromLeagueContent,
   extractStatCategoriesFromLeagueSettings,
   isErrorResponse,
 } from '../../../utils/yahooData';
-import type { StandingsTeam, TeamData, StatCategory, LeagueAggregatedStats } from '../../../utils/yahooData';
+import type {
+  StandingsTeam,
+  TeamData,
+  StatCategory,
+  LeagueAggregatedStats,
+  LeagueWeeklyStats,
+} from '../../../utils/yahooData';
 
 type ResponseData = {
   name?: string;
@@ -35,6 +42,11 @@ type ResponseData = {
    * Used to populate the league stats chart.
    */
   aggregated_stats?: LeagueAggregatedStats;
+  /**
+   * Per-team per-week stats for the entire league (oldest week first).
+   * Used to populate the league weekly line chart.
+   */
+  weekly_stats?: LeagueWeeklyStats;
 };
 
 export default async function teams(
@@ -104,12 +116,13 @@ export default async function teams(
       );
     }
 
-    // Fetch aggregated stats for all teams in the league
-    console.log('[leagueinfo API] Fetching aggregated weekly stats for all teams');
-    const aggregated_stats: LeagueAggregatedStats | null = await getLeagueWeeklyAggregatedStats(
-      req,
-      league_teams
-    );
+    // Fetch aggregated stats and per-week stats for all teams in parallel
+    console.log('[leagueinfo API] Fetching aggregated weekly stats and per-week stats for all teams in parallel');
+    const [aggregated_stats, weekly_stats] = await Promise.all([
+      getLeagueWeeklyAggregatedStats(req, league_teams),
+      getLeagueAllTeamsWeeklyStats(req, league_teams),
+    ]);
+
     if (aggregated_stats) {
       console.log(
         `[leagueinfo API] aggregated_stats: ${Object.keys(aggregated_stats.teams).length} team(s) aggregated (weeks ${aggregated_stats.week_range.start}–${aggregated_stats.week_range.end})`
@@ -117,6 +130,16 @@ export default async function teams(
     } else {
       console.warn(
         '[leagueinfo API] getLeagueWeeklyAggregatedStats returned null — chart will not display'
+      );
+    }
+
+    if (weekly_stats) {
+      console.log(
+        `[leagueinfo API] weekly_stats: ${Object.keys(weekly_stats).length} team(s) with per-week data`
+      );
+    } else {
+      console.warn(
+        '[leagueinfo API] getLeagueAllTeamsWeeklyStats returned null — weekly line chart will not display'
       );
     }
 
@@ -163,6 +186,7 @@ export default async function teams(
       ...(extracted_teams ? { extracted_teams } : {}),
       ...(stat_categories ? { stat_categories } : {}),
       ...(aggregated_stats ? { aggregated_stats } : {}),
+      ...(weekly_stats ? { weekly_stats } : {}),
     };
 
     console.log(
@@ -171,7 +195,8 @@ export default async function teams(
       '| is_finished:', is_finished,
       '| extracted_teams count:', extracted_teams?.length ?? 0,
       '| stat_categories count:', stat_categories?.length ?? 0,
-      '| aggregated_stats present:', !!aggregated_stats
+      '| aggregated_stats present:', !!aggregated_stats,
+      '| weekly_stats present:', !!weekly_stats
     );
 
     res.status(200).json(responsePayload);
