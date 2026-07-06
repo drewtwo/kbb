@@ -1,9 +1,10 @@
 import { useRouter } from 'next/router';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
-import type { LeagueAggregatedStats, StandingsTeam, TeamData } from '../../../utils/yahooData';
+import type { LeagueAggregatedStats, StandingsTeam, TeamData, StatCategory } from '../../../utils/yahooData';
 import StandingsTable from '../../../components/standings-table';
 import TeamsListFallback from '../../../components/teams-list-fallback';
+import LeagueStatsChart from '../../../components/league-stats-chart';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -31,6 +32,11 @@ interface GameInfoData {
    * navigate to individual team stats pages.
    */
   extracted_teams?: TeamData[];
+  /**
+   * Stat categories defined for this league, extracted from the settings response.
+   * Used to populate the dropdown in the league stats chart.
+   */
+  stat_categories?: StatCategory[];
 }
 
 /**
