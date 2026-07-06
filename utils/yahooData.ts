@@ -1143,15 +1143,148 @@ export const extractStandingsFromLeagueContent = (
   return validTeams.length > 0 ? validTeams : null;
 };
 
-export const getWeeklyStats = async (req: NextApiRequest, team_key: string | string[]): Promise<unknown[]> => {
-  const teamKeyStr = Array.isArray(team_key) ? team_key[0] : team_key;
-  let stats = await getWeekStats(req, teamKeyStr, '0');
-  const week = (stats as Record<string, unknown>).week as number;
-  const result: unknown[] = [stats];
-  for (let index = week - 1; index > 0; index--) {
-    stats = await getWeekStats(req, teamKeyStr, String(index));
-    result.push(stats);
+/**
+ * Extracts the current week number from a fantasy_content object returned by
+ * `getWeekStats`. The week is nested at `fantasy_content.team.team_points.week`.
+ *
+ * @param fantasyContent - The raw fantasy_content object from the Yahoo API
+ * @returns The current week number, or null if it cannot be determined
+ */
+const extractCurrentWeekFromStats = (fantasyContent: unknown): number | null => {
+  if (!fantasyContent || typeof fantasyContent !== 'object') {
+    console.error(
+      '[yahooData] extractCurrentWeekFromStats: fantasyContent is null or not an object'
+    );
+    return null;
   }
+
+  const content = fantasyContent as WeeklyStatsContent;
+  const team = content.team;
+
+  if (!team) {
+    console.error(
+      '[yahooData] extractCurrentWeekFromStats: team property is missing from fantasy_content'
+    );
+    return null;
+  }
+
+  const teamPoints = team.team_points;
+  if (!teamPoints) {
+    console.error(
+      '[yahooData] extractCurrentWeekFromStats: team.team_points is missing'
+    );
+    return null;
+  }
+
+  const rawWeek = teamPoints.week;
+  if (rawWeek === undefined || rawWeek === null) {
+    console.error(
+      '[yahooData] extractCurrentWeekFromStats: team.team_points.week is missing'
+    );
+    return null;
+  }
+
+  const weekNum: number =
+    typeof rawWeek === 'number' ? rawWeek : parseInt(String(rawWeek), 10);
+
+  if (isNaN(weekNum) || weekNum <= 0) {
+    console.error(
+      `[yahooData] extractCurrentWeekFromStats: invalid week value "${rawWeek}" (parsed: ${weekNum})`
+    );
+    return null;
+  }
+
+  console.log(
+    `[yahooData] extractCurrentWeekFromStats: detected current week = ${weekNum}`
+  );
+  return weekNum;
+};
+
+/**
+ * Fetches weekly stats for a single team across all weeks from week 1 up to
+ * and including the current week.
+ *
+ * The current week is determined by fetching week `'0'` (Yahoo's alias for the
+ * current week) and reading the `team.team_points.week` field from the response.
+ * All prior weeks are then fetched in parallel and the results are returned in
+ * descending order (most recent week first) to match the expected shape for the
+ * team stats page chart helpers.
+ *
+ * @param req - The Next.js API request (needed for auth token extraction)
+ * @param team_key - The Yahoo team key (e.g. "411.l.12345.t.1")
+ * @returns An array of raw fantasy_content objects, one per week (most recent
+ *          first), or an empty array if the current week cannot be determined
+ */
+export const getWeeklyStats = async (
+  req: NextApiRequest,
+  team_key: string | string[]
+): Promise<unknown[]> => {
+  const teamKeyStr: string = Array.isArray(team_key) ? team_key[0] : team_key;
+
+  console.log(
+    `[yahooData] getWeeklyStats: fetching current week stats for team "${teamKeyStr}"`
+  );
+
+  // Fetch week '0' — Yahoo's alias for the current/most-recent scoring week
+  const currentWeekStats: unknown = await getWeekStats(req, teamKeyStr, '0');
+
+  // Guard: if the current-week fetch returned an error, bail out early
+  if (isErrorResponse(currentWeekStats)) {
+    console.error(
+      `[yahooData] getWeeklyStats: error fetching current week for team "${teamKeyStr}":`,
+      (currentWeekStats as { error: string }).error
+    );
+    return [];
+  }
+
+  // Extract the current week number from the nested team.team_points.week field
+  const currentWeek: number | null = extractCurrentWeekFromStats(currentWeekStats);
+
+  if (currentWeek === null) {
+    console.error(
+      `[yahooData] getWeeklyStats: could not determine current week for team "${teamKeyStr}". ` +
+        'Returning only the current-week entry.'
+    );
+    // Return at least the current week data so the page is not completely empty
+    return [currentWeekStats];
+  }
+
+  console.log(
+    `[yahooData] getWeeklyStats: current week is ${currentWeek} for team "${teamKeyStr}". ` +
+      `Fetching weeks 1–${currentWeek - 1} in parallel.`
+  );
+
+  // Fetch all prior weeks (currentWeek-1 down to 1) in parallel
+  const priorWeekNumbers: number[] = [];
+  for (let w: number = currentWeek - 1; w >= 1; w--) {
+    priorWeekNumbers.push(w);
+  }
+
+  let priorWeekStats: unknown[] = [];
+  if (priorWeekNumbers.length > 0) {
+    const priorWeekPromises: Promise<unknown>[] = priorWeekNumbers.map(
+      (w: number) => getWeekStats(req, teamKeyStr, String(w))
+    );
+
+    try {
+      priorWeekStats = await Promise.all(priorWeekPromises);
+    } catch (err) {
+      const msg: string = err instanceof Error ? err.message : 'Unknown error';
+      console.error(
+        `[yahooData] getWeeklyStats: error fetching prior weeks for team "${teamKeyStr}": ${msg}`
+      );
+      // Fall through — return at minimum the current week
+    }
+  }
+
+  // Result ordered most-recent first: [currentWeek, currentWeek-1, ..., week1]
+  const result: unknown[] = [currentWeekStats, ...priorWeekStats];
+
+  console.log(
+    `[yahooData] getWeeklyStats: returning ${result.length} week(s) for team "${teamKeyStr}" ` +
+      `(weeks ${currentWeek} down to 1)`
+  );
+
   return result;
 };
 
