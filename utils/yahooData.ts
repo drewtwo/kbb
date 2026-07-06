@@ -1296,9 +1296,8 @@ export const getWeekStats = async (
   return new Promise((resolve) => {
     (async () => {
       try {
-        let stats: unknown = {};
         const token = await getToken({ req, secret });
-        
+
         // Validate token before making request
         if (!validateToken(token)) {
           const errorMsg = 'Invalid or missing authentication token';
@@ -1306,6 +1305,11 @@ export const getWeekStats = async (
           resolve({ error: errorMsg, statusCode: 401 });
           return;
         }
+
+        const weekLabel: string = week === '0' ? 'current (0)' : week;
+        console.log(
+          `[yahooData] getWeekStats: fetching week ${weekLabel} for team "${team_key}"`
+        );
 
         const options = {
           hostname: 'fantasysports.yahooapis.com',
@@ -1321,18 +1325,21 @@ export const getWeekStats = async (
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
-          
+
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
-            console.error(`[yahooData] getWeekStats HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
-            const newError: ErrorResponse = { 
+            console.error(
+              `[yahooData] getWeekStats HTTP Error for week ${weekLabel}: ` +
+                `${response.statusCode} - ${response.statusMessage}`
+            );
+            const newError: ErrorResponse = {
               error: `HTTP Error: ${response.statusCode} - ${response.statusMessage}`,
-              statusCode: response.statusCode
+              statusCode: response.statusCode,
             };
             resolve(newError);
             return;
           }
-          
+
           response.on('data', (chunk) => {
             chunks.push(chunk);
           });
@@ -1341,28 +1348,60 @@ export const getWeekStats = async (
             const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
             zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
               if (err) {
-                console.error(`[yahooData] getWeekStats Decompression error: ${err}`);
-                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+                console.error(
+                  `[yahooData] getWeekStats Decompression error for week ${weekLabel}: ${err}`
+                );
+                const newError: ErrorResponse = {
+                  error: `Decompression error: ${err}`,
+                };
                 resolve(newError);
                 return;
               }
               parser.parseString(dezipped.toString(), function (parseErr, result) {
                 if (parseErr) {
-                  console.error(`[yahooData] getWeekStats XML parsing error: ${parseErr}`);
-                  const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
+                  console.error(
+                    `[yahooData] getWeekStats XML parsing error for week ${weekLabel}: ${parseErr}`
+                  );
+                  const newError: ErrorResponse = {
+                    error: `XML parsing error: ${parseErr}`,
+                  };
                   resolve(newError);
                   return;
                 }
-                stats = (result as Record<string, unknown>).fantasy_content;
-                resolve(stats);
+
+                const fantasyContent = (result as Record<string, unknown>).fantasy_content;
+
+                if (!fantasyContent) {
+                  console.error(
+                    `[yahooData] getWeekStats: fantasy_content missing in response for week ${weekLabel}`
+                  );
+                  resolve({
+                    error: `Missing fantasy_content in response for week ${weekLabel}`,
+                  });
+                  return;
+                }
+
+                // Log the week number from the response for diagnostics
+                const weeklyContent = fantasyContent as WeeklyStatsContent;
+                const detectedWeek = weeklyContent?.team?.team_points?.week;
+                console.log(
+                  `[yahooData] getWeekStats: received week ${weekLabel} for team "${team_key}", ` +
+                    `response week = "${detectedWeek}"`
+                );
+
+                resolve(fantasyContent);
               });
             });
           });
         });
 
         request.on('error', (error) => {
-          console.error(`[yahooData] getWeekStats Network error: ${error.message}`);
-          const newError: ErrorResponse = { error: `Network error on Get Request: ${error.message}` };
+          console.error(
+            `[yahooData] getWeekStats Network error for week ${weekLabel}: ${error.message}`
+          );
+          const newError: ErrorResponse = {
+            error: `Network error on Get Request: ${error.message}`,
+          };
           resolve(newError);
         });
 
