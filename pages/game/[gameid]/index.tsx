@@ -19,7 +19,10 @@ interface GameInfoData {
   aggregated_stats?: LeagueAggregatedStats;
   /** League standings — one entry per team, sorted by rank. */
   standings?: StandingsTeam[];
-  /** True when the season has finished. */
+  /**
+   * Whether the season has finished.  Populated from the Yahoo API
+   * `is_finished` field via the leagueinfo API route.
+   */
   is_finished?: boolean;
 }
 
@@ -31,9 +34,13 @@ interface GameInfoData {
  */
 const isValidStandingsArray = (standings: unknown): standings is StandingsTeam[] => {
   if (!Array.isArray(standings) || standings.length === 0) {
+    console.warn(
+      '[GamePage] isValidStandingsArray: standings is not a non-empty array.',
+      'Value:', standings
+    );
     return false;
   }
-  return standings.every(
+  const result: boolean = standings.every(
     (t: unknown) =>
       t !== null &&
       typeof t === 'object' &&
@@ -41,6 +48,13 @@ const isValidStandingsArray = (standings: unknown): standings is StandingsTeam[]
       typeof (t as StandingsTeam).team_id === 'string' &&
       typeof (t as StandingsTeam).name === 'string'
   );
+  if (!result) {
+    console.warn(
+      '[GamePage] isValidStandingsArray: one or more standings entries failed field validation.',
+      'Entries:', standings
+    );
+  }
+  return result;
 };
 
 const League = () => {
@@ -48,7 +62,7 @@ const League = () => {
   const { gameid } = router.query;
   const gameIdStr: string = Array.isArray(gameid) ? gameid[0] : (gameid ?? '');
 
-  // Use the leagueinfo endpoint which now includes standings and aggregated_stats
+  // Use the leagueinfo endpoint which now includes standings, is_finished, and aggregated_stats
   const league_info_route: string = `/api/leagueinfo/${gameIdStr}`;
   const { data, error } = useSwr<GameInfoData>(gameIdStr ? league_info_route : null, fetcher);
 
@@ -62,6 +76,16 @@ const League = () => {
       </Layout>
     );
   }
+
+  // Log the raw API response shape to aid debugging of standings loading issues
+  console.log(
+    '[GamePage] Raw API response keys:', Object.keys(data),
+    '| standings present:', 'standings' in data,
+    '| standings type:', typeof data.standings,
+    '| standings length:', Array.isArray(data.standings) ? data.standings.length : 'N/A',
+    '| is_finished raw value:', data.is_finished,
+    '| is_finished type:', typeof data.is_finished
+  );
 
   // Validate standings before passing to the table component so that
   // malformed or partially-missing data surfaces a clear fallback message
@@ -80,7 +104,8 @@ const League = () => {
     );
   }
 
-  const isFinished: boolean = data.is_finished ?? false;
+  // is_finished is now a boolean field returned directly by the API route
+  const isFinished: boolean = data.is_finished === true;
   const aggregatedStats: LeagueAggregatedStats | undefined = data.aggregated_stats;
 
   if (aggregatedStats) {
