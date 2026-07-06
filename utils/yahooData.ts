@@ -524,6 +524,87 @@ export const getLeagueAggregatedStats = async (
 };
 
 /**
+ * Fetches and aggregates weekly stats for all teams in a league using the
+ * existing getWeeklyStats and aggregateWeeklyStats functions.
+ *
+ * This function is called by the /api/leagueinfo/[id] endpoint to build the
+ * LeagueAggregatedStats structure that the chart component expects.
+ *
+ * @param req - The Next.js API request (needed for auth token extraction)
+ * @param leagueTeamsContent - The raw fantasy_content from getLeagueTeams
+ * @param startWeek - First week of the season to include (default: SEASON_START_WEEK)
+ * @param endWeek - Last week of the season to include (default: SEASON_END_WEEK)
+ * @returns A LeagueAggregatedStats object, or null on failure
+ */
+export const getLeagueWeeklyAggregatedStats = async (
+  req: NextApiRequest,
+  leagueTeamsContent: unknown,
+  startWeek: number = SEASON_START_WEEK,
+  endWeek: number = SEASON_END_WEEK
+): Promise<LeagueAggregatedStats | null> => {
+  const teams = extractTeamsFromLeagueContent(leagueTeamsContent);
+  if (!teams || teams.length === 0) {
+    console.error('[yahooData] getLeagueWeeklyAggregatedStats: could not extract teams from league content');
+    return null;
+  }
+
+  console.log(
+    `[yahooData] getLeagueWeeklyAggregatedStats: aggregating weeks ${startWeek}-${endWeek} for ${teams.length} teams`
+  );
+
+  const result: LeagueAggregatedStats = {
+    teams: {},
+    week_range: { start: startWeek, end: endWeek },
+  };
+
+  for (const team of teams) {
+    const { team_key, name } = team;
+
+    // Fetch stats for every week in the range in parallel for this team
+    const weekNumbers: number[] = [];
+    for (let w: number = startWeek; w <= endWeek; w++) {
+      weekNumbers.push(w);
+    }
+
+    const weeklyStatsPromises: Promise<unknown>[] = weekNumbers.map(
+      (week: number) => getWeekStats(req, team_key, String(week))
+    );
+
+    let weeklyStats: unknown[];
+    try {
+      weeklyStats = await Promise.all(weeklyStatsPromises);
+    } catch (err) {
+      const msg: string = err instanceof Error ? err.message : 'Unknown error';
+      console.error(
+        `[yahooData] getLeagueWeeklyAggregatedStats: error fetching weekly stats for team ${team_key}: ${msg}`
+      );
+      continue;
+    }
+
+    const aggregated: AggregatedTeamStats | null = aggregateWeeklyStats(
+      weeklyStats,
+      team_key,
+      name
+    );
+
+    if (aggregated) {
+      result.teams[team_key] = aggregated;
+    }
+  }
+
+  if (Object.keys(result.teams).length === 0) {
+    console.error('[yahooData] getLeagueWeeklyAggregatedStats: no teams were successfully aggregated');
+    return null;
+  }
+
+  console.log(
+    `[yahooData] getLeagueWeeklyAggregatedStats: successfully aggregated stats for ${Object.keys(result.teams).length} teams`
+  );
+
+  return result;
+};
+
+/**
  * Converts a game ID (numeric, e.g. "411") to a league key format suitable for
  * Yahoo Fantasy API calls. If the input already looks like a full league key
  * (contains a dot, e.g. "411.l.12345"), it is returned as-is.

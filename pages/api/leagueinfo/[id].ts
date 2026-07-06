@@ -3,11 +3,12 @@ import {
   getLeagueTeams,
   getLeagueSettings,
   getLeagueStandings,
+  getLeagueWeeklyAggregatedStats,
   extractTeamsFromLeagueContent,
   extractStatCategoriesFromLeagueSettings,
   isErrorResponse,
 } from '../../../utils/yahooData';
-import type { StandingsTeam, TeamData, StatCategory } from '../../../utils/yahooData';
+import type { StandingsTeam, TeamData, StatCategory, LeagueAggregatedStats } from '../../../utils/yahooData';
 
 type ResponseData = {
   name?: string;
@@ -29,6 +30,11 @@ type ResponseData = {
    * Used to populate the dropdown in the league stats chart.
    */
   stat_categories?: StatCategory[];
+  /**
+   * Aggregated weekly stats for all teams in the league.
+   * Used to populate the league stats chart.
+   */
+  aggregated_stats?: LeagueAggregatedStats;
 };
 
 export default async function teams(
@@ -98,6 +104,22 @@ export default async function teams(
       );
     }
 
+    // Fetch aggregated stats for all teams in the league
+    console.log('[leagueinfo API] Fetching aggregated weekly stats for all teams');
+    const aggregated_stats: LeagueAggregatedStats | null = await getLeagueWeeklyAggregatedStats(
+      req,
+      league_teams
+    );
+    if (aggregated_stats) {
+      console.log(
+        `[leagueinfo API] aggregated_stats: ${Object.keys(aggregated_stats.teams).length} team(s) aggregated (weeks ${aggregated_stats.week_range.start}–${aggregated_stats.week_range.end})`
+      );
+    } else {
+      console.warn(
+        '[leagueinfo API] getLeagueWeeklyAggregatedStats returned null — chart will not display'
+      );
+    }
+
     // Standings are non-fatal — if the call failed we omit them from the response
     let standings: StandingsTeam[] | undefined;
     let is_finished: boolean = false;
@@ -140,6 +162,7 @@ export default async function teams(
       is_finished,
       ...(extracted_teams ? { extracted_teams } : {}),
       ...(stat_categories ? { stat_categories } : {}),
+      ...(aggregated_stats ? { aggregated_stats } : {}),
     };
 
     console.log(
@@ -147,7 +170,8 @@ export default async function teams(
       '| standings count:', standings?.length ?? 0,
       '| is_finished:', is_finished,
       '| extracted_teams count:', extracted_teams?.length ?? 0,
-      '| stat_categories count:', stat_categories?.length ?? 0
+      '| stat_categories count:', stat_categories?.length ?? 0,
+      '| aggregated_stats present:', !!aggregated_stats
     );
 
     res.status(200).json(responsePayload);
