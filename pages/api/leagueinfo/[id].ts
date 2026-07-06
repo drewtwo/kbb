@@ -3,9 +3,10 @@ import {
   getLeagueTeams,
   getLeagueSettings,
   getLeagueStandings,
+  extractTeamsFromLeagueContent,
   isErrorResponse,
 } from '../../../utils/yahooData';
-import type { StandingsTeam } from '../../../utils/yahooData';
+import type { StandingsTeam, TeamData } from '../../../utils/yahooData';
 
 type ResponseData = {
   name?: string;
@@ -16,6 +17,12 @@ type ResponseData = {
   standings?: StandingsTeam[];
   /** True when the season has finished (derived from Yahoo API is_finished field). */
   is_finished?: boolean;
+  /**
+   * Flat list of teams extracted from the league teams response.
+   * Populated even when standings are unavailable so the game page can render
+   * a fallback team list with links to individual team stats pages.
+   */
+  extracted_teams?: TeamData[];
 };
 
 export default async function teams(
@@ -60,6 +67,19 @@ export default async function teams(
     }
     console.log('[leagueinfo API] league_settings fetched successfully');
 
+    // Extract the flat teams array from the league_teams response so the game
+    // page can render a fallback list even when standings are unavailable.
+    const extracted_teams: TeamData[] | null = extractTeamsFromLeagueContent(league_teams);
+    if (extracted_teams) {
+      console.log(
+        `[leagueinfo API] extracted_teams: ${extracted_teams.length} team(s) extracted from league_teams`
+      );
+    } else {
+      console.warn(
+        '[leagueinfo API] extractTeamsFromLeagueContent returned null — fallback team list will be empty'
+      );
+    }
+
     // Standings are non-fatal — if the call failed we omit them from the response
     let standings: StandingsTeam[] | undefined;
     let is_finished: boolean = false;
@@ -100,12 +120,14 @@ export default async function teams(
       settings: league_settings,
       ...(standings ? { standings } : {}),
       is_finished,
+      ...(extracted_teams ? { extracted_teams } : {}),
     };
 
     console.log(
       '[leagueinfo API] Sending response — standings present:', !!standings,
       '| standings count:', standings?.length ?? 0,
-      '| is_finished:', is_finished
+      '| is_finished:', is_finished,
+      '| extracted_teams count:', extracted_teams?.length ?? 0
     );
 
     res.status(200).json(responsePayload);

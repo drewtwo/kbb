@@ -1,8 +1,9 @@
 import { useRouter } from 'next/router';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
-import type { LeagueAggregatedStats, StandingsTeam } from '../../../utils/yahooData';
+import type { LeagueAggregatedStats, StandingsTeam, TeamData } from '../../../utils/yahooData';
 import StandingsTable from '../../../components/standings-table';
+import TeamsListFallback from '../../../components/teams-list-fallback';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -24,6 +25,12 @@ interface GameInfoData {
    * `is_finished` field via the leagueinfo API route.
    */
   is_finished?: boolean;
+  /**
+   * Flat list of teams extracted from the league teams response.
+   * Used as a fallback when standings data is unavailable so users can still
+   * navigate to individual team stats pages.
+   */
+  extracted_teams?: TeamData[];
 }
 
 /**
@@ -57,6 +64,24 @@ const isValidStandingsArray = (standings: unknown): standings is StandingsTeam[]
   return result;
 };
 
+/**
+ * Validates that an extracted_teams array is non-empty and that every entry
+ * has the minimum required fields (team_key, team_id, name).
+ */
+const isValidTeamsArray = (teams: unknown): teams is TeamData[] => {
+  if (!Array.isArray(teams) || teams.length === 0) {
+    return false;
+  }
+  return teams.every(
+    (t: unknown) =>
+      t !== null &&
+      typeof t === 'object' &&
+      typeof (t as TeamData).team_key === 'string' &&
+      typeof (t as TeamData).team_id === 'string' &&
+      typeof (t as TeamData).name === 'string'
+  );
+};
+
 const League = () => {
   const router = useRouter();
   const { gameid } = router.query;
@@ -84,7 +109,8 @@ const League = () => {
     '| standings type:', typeof data.standings,
     '| standings length:', Array.isArray(data.standings) ? data.standings.length : 'N/A',
     '| is_finished raw value:', data.is_finished,
-    '| is_finished type:', typeof data.is_finished
+    '| is_finished type:', typeof data.is_finished,
+    '| extracted_teams length:', Array.isArray(data.extracted_teams) ? data.extracted_teams.length : 'N/A'
   );
 
   // Validate standings before passing to the table component so that
@@ -99,8 +125,21 @@ const League = () => {
     // The API returned a standings field but it failed validation — log details
     // so the issue can be diagnosed from the browser console.
     console.warn(
-      '[GamePage] standings data received from API but failed validation — falling back to "no standings" message.',
+      '[GamePage] standings data received from API but failed validation — falling back to teams list.',
       'Raw standings value:', rawStandings
+    );
+  }
+
+  // Validate the extracted_teams fallback array
+  const rawExtractedTeams: TeamData[] | undefined = data.extracted_teams;
+  const extractedTeams: TeamData[] | undefined = isValidTeamsArray(rawExtractedTeams)
+    ? rawExtractedTeams
+    : undefined;
+
+  if (rawExtractedTeams !== undefined && extractedTeams === undefined) {
+    console.warn(
+      '[GamePage] extracted_teams received from API but failed validation — fallback list will be empty.',
+      'Raw extracted_teams value:', rawExtractedTeams
     );
   }
 
@@ -122,7 +161,10 @@ const League = () => {
       `[GamePage] Rendering standings table with ${standings.length} team(s), isFinished=${isFinished}`
     );
   } else {
-    console.warn('[GamePage] No valid standings data available — rendering fallback message');
+    console.warn(
+      '[GamePage] No valid standings data available — rendering fallback team list.',
+      'extracted_teams count:', extractedTeams?.length ?? 0
+    );
   }
 
   return (
@@ -141,7 +183,10 @@ const League = () => {
           isFinished={isFinished}
         />
       ) : (
-        <p>No standings data available.</p>
+        <TeamsListFallback
+          gameId={gameIdStr}
+          teams={extractedTeams ?? []}
+        />
       )}
     </Layout>
   );
