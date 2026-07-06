@@ -7,6 +7,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  type TooltipItem,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import type { StatCategory, LeagueAggregatedStats } from '../utils/yahooData';
@@ -76,8 +77,11 @@ const LeagueStatsChart: React.FC<LeagueStatsChartProps> = ({
       },
       tooltip: {
         callbacks: {
-          label: (context: { parsed: { y: number }; label: string }) => {
-            const value: number = context.parsed.y;
+          label: (context: TooltipItem<'bar'>) => {
+            const value = context.parsed.y;
+            if (value === null || value === undefined) {
+              return `${context.label}: N/A`;
+            }
             return `${context.label}: ${value % 1 === 0 ? value.toFixed(0) : value.toFixed(2)}`;
           },
         },
