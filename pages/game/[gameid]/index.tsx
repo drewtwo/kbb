@@ -197,6 +197,12 @@ const League = () => {
           teams={extractedTeams ?? []}
         />
       )}
+      {aggregatedStats && statCategories.length > 0 && (
+        <LeagueStatsChart
+          aggregatedStats={aggregatedStats}
+          statCategories={statCategories}
+        />
+      )}
     </Layout>
   );
 };
