@@ -9,14 +9,17 @@
  *  - aggregateWeeklyStats returns null when no valid weeks are found
  *  - aggregateWeeklyStats returns null for empty input
  *  - SEASON_START_WEEK and SEASON_END_WEEK default to 1 and 15 respectively
+ *  - extractStatsFromWeekContent correctly reads the nested stats structure
+ *  - week number detection via team_points.week works correctly
  */
 
 import {
   aggregateWeeklyStats,
+  extractStatsFromWeekContent,
   SEASON_START_WEEK,
   SEASON_END_WEEK,
 } from '../utils/yahooData';
-import type { AggregatedTeamStats } from '../utils/yahooData';
+import type { AggregatedTeamStats, StatEntry } from '../utils/yahooData';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
