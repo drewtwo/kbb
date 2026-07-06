@@ -1496,6 +1496,123 @@ export const getWeekStats = async (
   });
 };
 
+// ─── Per-team per-week stats types ──────────────────────────────────────────
+
+/**
+ * Per-team, per-week stats for the entire league.
+ * Keyed by team_key; each value contains the team name and an ordered array
+ * of per-week StatEntry arrays (oldest week first, i.e. week 1 at index 0).
+ */
+export interface LeagueWeeklyStats {
+  [team_key: string]: {
+    team_name: string;
+    /** Ordered array of per-week stats arrays, oldest week first. */
+    weekly: StatEntry[][];
+  };
+}
+
+/**
+ * Fetches per-week stats for every team in a league in parallel and returns
+ * a `LeagueWeeklyStats` map (oldest week first for each team).
+ *
+ * Uses `getWeeklyStats` (which auto-detects the current week) for each team,
+ * then reverses the resulting array (which is most-recent-first) to produce
+ * chronological order.
+ *
+ * @param req - The Next.js API request (needed for auth token extraction)
+ * @param leagueTeamsContent - The raw fantasy_content from getLeagueTeams
+ * @returns A LeagueWeeklyStats map, or null on total failure
+ */
+export const getLeagueAllTeamsWeeklyStats = async (
+  req: NextApiRequest,
+  leagueTeamsContent: unknown
+): Promise<LeagueWeeklyStats | null> => {
+  const teams: TeamData[] | null = extractTeamsFromLeagueContent(leagueTeamsContent);
+  if (!teams || teams.length === 0) {
+    console.error(
+      '[yahooData] getLeagueAllTeamsWeeklyStats: could not extract teams from league content'
+    );
+    return null;
+  }
+
+  console.log(
+    `[yahooData] getLeagueAllTeamsWeeklyStats: fetching weekly stats for ${teams.length} teams in parallel`
+  );
+
+  // Fetch all teams' weekly stats in parallel
+  const teamWeeklyPromises: Promise<{ team: TeamData; weeks: unknown[] }>[] = teams.map(
+    async (team: TeamData) => {
+      const weeks: unknown[] = await getWeeklyStats(req, team.team_key);
+      return { team, weeks };
+    }
+  );
+
+  let teamResults: { team: TeamData; weeks: unknown[] }[];
+  try {
+    teamResults = await Promise.all(teamWeeklyPromises);
+  } catch (err) {
+    const msg: string = err instanceof Error ? err.message : 'Unknown error';
+    console.error(
+      `[yahooData] getLeagueAllTeamsWeeklyStats: error fetching weekly stats: ${msg}`
+    );
+    return null;
+  }
+
+  const result: LeagueWeeklyStats = {};
+
+  for (const { team, weeks } of teamResults) {
+    const { team_key, name } = team;
+
+    if (!weeks || weeks.length === 0) {
+      console.warn(
+        `[yahooData] getLeagueAllTeamsWeeklyStats: no weeks returned for team "${team_key}", skipping`
+      );
+      continue;
+    }
+
+    // getWeeklyStats returns most-recent-first; reverse to get oldest-first (chronological)
+    const chronologicalWeeks: unknown[] = [...weeks].reverse();
+
+    const weeklyStats: StatEntry[][] = [];
+    for (const weekContent of chronologicalWeeks) {
+      if (isErrorResponse(weekContent)) {
+        console.warn(
+          `[yahooData] getLeagueAllTeamsWeeklyStats: skipping error week for team "${team_key}":`,
+          (weekContent as { error: string }).error
+        );
+        // Push an empty array so week indices remain aligned across teams
+        weeklyStats.push([]);
+        continue;
+      }
+
+      const stats: StatEntry[] | null = extractStatsFromWeekContent(weekContent);
+      weeklyStats.push(stats ?? []);
+    }
+
+    result[team_key] = {
+      team_name: name,
+      weekly: weeklyStats,
+    };
+
+    console.log(
+      `[yahooData] getLeagueAllTeamsWeeklyStats: team "${team_key}" (${name}) — ${weeklyStats.length} week(s) processed`
+    );
+  }
+
+  if (Object.keys(result).length === 0) {
+    console.error(
+      '[yahooData] getLeagueAllTeamsWeeklyStats: no teams were successfully processed'
+    );
+    return null;
+  }
+
+  console.log(
+    `[yahooData] getLeagueAllTeamsWeeklyStats: successfully processed ${Object.keys(result).length} teams`
+  );
+
+  return result;
+};
+
 // ─── Chart data utilities ────────────────────────────────────────────────────
 
 /**
