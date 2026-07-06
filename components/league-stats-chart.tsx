@@ -8,6 +8,7 @@ import {
   Tooltip,
   Legend,
   type TooltipItem,
+  type ChartOptions,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import type { StatCategory, LeagueAggregatedStats } from '../utils/yahooData';
@@ -56,7 +57,7 @@ const LeagueStatsChart: React.FC<LeagueStatsChartProps> = ({
 
   const chartData = buildChartData(aggregatedStats, selectedStatId, TEAM_COLORS);
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -70,7 +71,7 @@ const LeagueStatsChart: React.FC<LeagueStatsChartProps> = ({
           : 'League Stats',
         font: {
           size: 16,
-          weight: 'bold' as const,
+          weight: 'bold',
         },
         color: '#1a1a2e',
         padding: { bottom: 12 },
