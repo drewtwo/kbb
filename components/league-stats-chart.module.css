@@ -1,0 +1,90 @@
+/* ─── League Stats Chart ───────────────────────────────────────────────────── */
+
+.chartContainer {
+  margin-top: 2rem;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Header row (label + dropdown) ───────────────────────────────────────── */
+
+.chartHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.selectLabel {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+}
+
+.statSelect {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fafafa;
+  color: #333;
+  cursor: pointer;
+  min-width: 180px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.statSelect:hover {
+  border-color: #0070f3;
+}
+
+.statSelect:focus {
+  outline: none;
+  border-color: #0070f3;
+  box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.2);
+}
+
+/* ─── Chart canvas wrapper ─────────────────────────────────────────────────── */
+
+.chartWrapper {
+  position: relative;
+  height: 340px;
+  width: 100%;
+}
+
+/* ─── Empty / no-data state ────────────────────────────────────────────────── */
+
+.chartEmpty {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  color: #666;
+  text-align: center;
+}
+
+.chartEmpty p {
+  margin: 0;
+}
+
+/* ─── Responsive adjustments ───────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .chartContainer {
+    padding: 1rem;
+  }
+
+  .chartWrapper {
+    height: 260px;
+  }
+
+  .statSelect {
+    min-width: 140px;
+  }
+}
