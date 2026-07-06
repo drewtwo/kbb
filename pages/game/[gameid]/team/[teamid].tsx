@@ -293,8 +293,15 @@ const Team = () => {
   console.log(`[Team page] Successfully loaded ${weeklyStatsData.stats_by_week.length} weeks of stats`);
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const handleBackClick = () => {
+    router.push(`/game/${gameIdStr}`);
+  };
+
   return (
     <Layout>
+      <button className={styles.backButton} onClick={handleBackClick}>
+        ← Back to League
+      </button>
       <p>League Stats</p>
       <div className={styles.statsGrid}>
         {statCategories.map((stat: StatCategory) => {
