@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -22,27 +22,23 @@ interface LeagueStatsChartProps {
   aggregatedStats: LeagueAggregatedStats;
   /** Stat categories available for selection. */
   statCategories: StatCategory[];
+  /** The currently selected stat_id (controlled by the parent). */
+  selectedStatId: string;
+  /** Callback invoked when the user changes the selected stat category. */
+  onStatChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
 }
 
 /**
  * Renders a bar chart comparing all teams for a selected stat category.
- * A dropdown allows the user to switch between available stat categories.
+ * The selected stat is controlled externally — the parent page owns the
+ * selection state so it can be shared with LeagueWeeklyChart.
  */
 const LeagueStatsChart: React.FC<LeagueStatsChartProps> = ({
   aggregatedStats,
   statCategories,
+  selectedStatId,
+  onStatChange,
 }) => {
-  const [selectedStatId, setSelectedStatId] = useState<string>(
-    statCategories.length > 0 ? statCategories[0].stat_id : ''
-  );
-
-  const handleStatChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setSelectedStatId(e.target.value);
-    },
-    []
-  );
-
   if (statCategories.length === 0) {
     return (
       <div className={styles.chartEmpty}>
@@ -115,7 +111,7 @@ const LeagueStatsChart: React.FC<LeagueStatsChartProps> = ({
           id="stat-select"
           className={styles.statSelect}
           value={selectedStatId}
-          onChange={handleStatChange}
+          onChange={onStatChange}
         >
           {statCategories.map((cat: StatCategory) => (
             <option key={cat.stat_id} value={cat.stat_id}>
