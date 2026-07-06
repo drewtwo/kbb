@@ -205,7 +205,7 @@ const League = () => {
           teams={extractedTeams ?? []}
         />
       )}
-      {aggregatedStats && statCategories.length > 0 && (
+      {aggregatedStats && (
         <LeagueStatsChart
           aggregatedStats={aggregatedStats}
           statCategories={statCategories}
