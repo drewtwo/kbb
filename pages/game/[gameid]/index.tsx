@@ -1,10 +1,18 @@
 import { useRouter } from 'next/router';
+import { useState, useCallback } from 'react';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
-import type { LeagueAggregatedStats, StandingsTeam, TeamData, StatCategory } from '../../../utils/yahooData';
+import type {
+  LeagueAggregatedStats,
+  LeagueWeeklyStats,
+  StandingsTeam,
+  TeamData,
+  StatCategory,
+} from '../../../utils/yahooData';
 import StandingsTable from '../../../components/standings-table';
 import TeamsListFallback from '../../../components/teams-list-fallback';
 import LeagueStatsChart from '../../../components/league-stats-chart';
+import LeagueWeeklyChart from '../../../components/league-weekly-chart';
 import styles from './league.module.css';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
