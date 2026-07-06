@@ -141,8 +141,8 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
       tooltip: {
         callbacks: {
           label: (context: TooltipItem<'line'>) => {
-            const value: number = context.parsed.y;
-            if (value === null || value === undefined) {
+            const value = context.parsed.y;
+            if (typeof value !== 'number' || isNaN(value)) {
               return `${context.dataset.label}: N/A`;
             }
             const formatted: string =
