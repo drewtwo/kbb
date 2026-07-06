@@ -75,22 +75,32 @@ export const extractTeamsFromLeagueContent = (
 
 /**
  * Win/loss/tie record and scoring totals for a single team in the standings.
+ *
+ * NOTE: The Yahoo Fantasy API may return `outcome_totals` as a nested object
+ * or may omit it entirely for leagues that have not yet started.  All fields
+ * are therefore typed as optional so that callers can safely use optional
+ * chaining (`record?.outcome_totals?.wins`) without TypeScript errors.
  */
 export interface StandingsTeamRecord {
   /** Overall rank in the league (1 = first place). */
-  rank: string;
-  outcome_totals: {
-    wins: string;
-    losses: string;
-    ties: string;
-    percentage: string;
+  rank?: string;
+  outcome_totals?: {
+    wins?: string;
+    losses?: string;
+    ties?: string;
+    percentage?: string;
   };
   /** Total fantasy points scored by this team. */
-  points_for: string;
+  points_for?: string;
   /** Total fantasy points scored against this team. */
-  points_against: string;
+  points_against?: string;
   /** Playoff seed (may be absent for in-progress seasons). */
   playoff_seed?: string;
+  /** streak — may be present in some API responses */
+  streak?: {
+    type?: string;
+    value?: string;
+  };
 }
 
 /**
@@ -1022,6 +1032,16 @@ export const extractStandingsFromLeagueContent = (
     return null;
   }
 
+  // Log the full top-level structure to diagnose unexpected API shapes
+  try {
+    console.log(
+      '[yahooData] extractStandingsFromLeagueContent: fantasyContent top-level keys:',
+      Object.keys(fantasyContent as Record<string, unknown>)
+    );
+  } catch (_e) {
+    // ignore — just diagnostic
+  }
+
   const content = fantasyContent as LeagueStandingsContent;
   const league = content.league;
 
@@ -1085,13 +1105,30 @@ export const extractStandingsFromLeagueContent = (
       );
       return false;
     }
+
+    // Log the raw team object keys to diagnose structural mismatches
+    console.log(
+      `[yahooData] extractStandingsFromLeagueContent: team[${idx}] keys:`,
+      Object.keys(team as Record<string, unknown>)
+    );
+
     if (!team.team_standings) {
       console.warn(
-        `[yahooData] extractStandingsFromLeagueContent: team "${team.name ?? team.team_key}" is missing team_standings`
+        `[yahooData] extractStandingsFromLeagueContent: team "${team.name ?? team.team_key}" (idx=${idx}) is missing team_standings.`,
+        'Team object keys:', Object.keys(team as Record<string, unknown>)
       );
     } else {
+      const standings: StandingsTeamRecord = team.team_standings;
       console.log(
-        `[yahooData] extractStandingsFromLeagueContent: team[${idx}] "${team.name}" rank="${team.team_standings.rank}" wins="${team.team_standings.outcome_totals?.wins}"`
+        `[yahooData] extractStandingsFromLeagueContent: team[${idx}] "${team.name}"`,
+        `rank="${standings.rank}"`,
+        `wins="${standings.outcome_totals?.wins}"`,
+        `losses="${standings.outcome_totals?.losses}"`,
+        `ties="${standings.outcome_totals?.ties}"`,
+        `ptsFor="${standings.points_for}"`,
+        `ptsAgainst="${standings.points_against}"`,
+        `playoffSeed="${standings.playoff_seed}"`,
+        '| team_standings keys:', Object.keys(standings as Record<string, unknown>)
       );
     }
     return true;
