@@ -152,6 +152,9 @@ const League = () => {
   // is_finished is now a boolean field returned directly by the API route
   const isFinished: boolean = data.is_finished === true;
   const aggregatedStats: LeagueAggregatedStats | undefined = data.aggregated_stats;
+  const statCategories: StatCategory[] = Array.isArray(data.stat_categories)
+    ? data.stat_categories
+    : [];
 
   if (aggregatedStats) {
     console.log(
