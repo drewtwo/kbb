@@ -1,0 +1,47 @@
+/* ─── League Weekly Chart ──────────────────────────────────────────────────── */
+
+.chartContainer {
+  margin-top: 2rem;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Chart canvas wrapper ─────────────────────────────────────────────────── */
+
+.chartWrapper {
+  position: relative;
+  height: 380px;
+  width: 100%;
+}
+
+/* ─── Empty / no-data state ────────────────────────────────────────────────── */
+
+.chartEmpty {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  color: #666;
+  text-align: center;
+}
+
+.chartEmpty p {
+  margin: 0;
+}
+
+/* ─── Responsive adjustments ───────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .chartContainer {
+    padding: 1rem;
+  }
+
+  .chartWrapper {
+    height: 300px;
+  }
+}

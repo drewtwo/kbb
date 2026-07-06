@@ -1,10 +1,18 @@
 import { useRouter } from 'next/router';
+import { useState, useCallback } from 'react';
 import Layout from '../../../components/layout';
 import useSwr from 'swr';
-import type { LeagueAggregatedStats, StandingsTeam, TeamData, StatCategory } from '../../../utils/yahooData';
+import type {
+  LeagueAggregatedStats,
+  LeagueWeeklyStats,
+  StandingsTeam,
+  TeamData,
+  StatCategory,
+} from '../../../utils/yahooData';
 import StandingsTable from '../../../components/standings-table';
 import TeamsListFallback from '../../../components/teams-list-fallback';
 import LeagueStatsChart from '../../../components/league-stats-chart';
+import LeagueWeeklyChart from '../../../components/league-weekly-chart';
 import styles from './league.module.css';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -20,6 +28,8 @@ interface GameInfoData {
   };
   /** Aggregated season stats for all teams, keyed by team_key. */
   aggregated_stats?: LeagueAggregatedStats;
+  /** Per-team per-week stats for the entire league (oldest week first). */
+  weekly_stats?: LeagueWeeklyStats;
   /** League standings — one entry per team, sorted by rank. */
   standings?: StandingsTeam[];
   /**
@@ -94,7 +104,18 @@ const League = () => {
   const { gameid } = router.query;
   const gameIdStr: string = Array.isArray(gameid) ? gameid[0] : (gameid ?? '');
 
-  // Use the leagueinfo endpoint which now includes standings, is_finished, and aggregated_stats
+  // Lifted stat selection state — shared between the bar chart and the line chart
+  const [selectedStatId, setSelectedStatId] = useState<string>('');
+
+  const handleStatChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setSelectedStatId(e.target.value);
+    },
+    []
+  );
+
+  // Use the leagueinfo endpoint which now includes standings, is_finished,
+  // aggregated_stats, and weekly_stats
   const league_info_route: string = `/api/leagueinfo/${gameIdStr}`;
   const { data, error } = useSwr<GameInfoData>(gameIdStr ? league_info_route : null, fetcher);
 
@@ -153,9 +174,19 @@ const League = () => {
   // is_finished is now a boolean field returned directly by the API route
   const isFinished: boolean = data.is_finished === true;
   const aggregatedStats: LeagueAggregatedStats | undefined = data.aggregated_stats;
+  const weeklyStats: LeagueWeeklyStats | undefined = data.weekly_stats;
   const statCategories: StatCategory[] = Array.isArray(data.stat_categories)
     ? data.stat_categories
     : [];
+
+  // Derive the effective stat id: use the lifted state value when set,
+  // otherwise fall back to the first available category once data has loaded.
+  const effectiveStatId: string =
+    selectedStatId !== ''
+      ? selectedStatId
+      : statCategories.length > 0
+      ? statCategories[0].stat_id
+      : '';
 
   if (aggregatedStats) {
     console.log(
@@ -164,6 +195,14 @@ const League = () => {
     );
   } else {
     console.warn('[GamePage] No aggregated_stats in API response — multi-week aggregation unavailable');
+  }
+
+  if (weeklyStats) {
+    console.log(
+      `[GamePage] Received weekly stats for ${Object.keys(weeklyStats).length} teams`
+    );
+  } else {
+    console.warn('[GamePage] No weekly_stats in API response — weekly line chart unavailable');
   }
 
   if (standings) {
@@ -209,6 +248,15 @@ const League = () => {
         <LeagueStatsChart
           aggregatedStats={aggregatedStats}
           statCategories={statCategories}
+          selectedStatId={effectiveStatId}
+          onStatChange={handleStatChange}
+        />
+      )}
+      {weeklyStats && (
+        <LeagueWeeklyChart
+          weeklyStats={weeklyStats}
+          statCategories={statCategories}
+          selectedStatId={effectiveStatId}
         />
       )}
     </Layout>
