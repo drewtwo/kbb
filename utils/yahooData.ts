@@ -829,22 +829,36 @@ export const getLeagueSettings = async (
 };
 
 /**
+ * The result returned by `getLeagueStandings`, bundling the teams array with
+ * the `is_finished` flag extracted from the same API response.
+ */
+export interface LeagueStandingsResult {
+  /** Standings teams array, one entry per team. */
+  teams: StandingsTeam[];
+  /**
+   * Whether the season has finished.  Derived from the `is_finished` field in
+   * the Yahoo API response ("1" = finished, anything else = not finished).
+   */
+  is_finished: boolean;
+}
+
+/**
  * Fetches the league standings from the Yahoo Fantasy API and returns the
- * extracted teams array directly.
+ * extracted teams array together with the `is_finished` flag.
  *
  * Calls `/fantasy/v2/league/{league_key}/standings`, handles gzip
  * decompression, XML parsing, HTTP/network/token errors, then internally
  * calls `extractStandingsFromLeagueContent` so callers receive a ready-to-use
- * `StandingsTeam[]` without needing to perform any further extraction.
+ * `LeagueStandingsResult` without needing to perform any further extraction.
  *
  * @param req - The Next.js API request (needed for auth token extraction)
  * @param league_key - The Yahoo league key (e.g. "411.l.12345")
- * @returns An array of StandingsTeam objects, or an ErrorResponse on failure
+ * @returns A LeagueStandingsResult object, or an ErrorResponse on failure
  */
 export const getLeagueStandings = async (
   req: NextApiRequest,
   league_key: string | string[]
-): Promise<StandingsTeam[] | ErrorResponse> => {
+): Promise<LeagueStandingsResult | ErrorResponse> => {
   return new Promise((resolve) => {
     (async () => {
       try {
@@ -859,6 +873,8 @@ export const getLeagueStandings = async (
         }
 
         const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
+        console.log(`[yahooData] getLeagueStandings: fetching standings for league "${leagueKeyStr}"`);
+
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
@@ -907,7 +923,32 @@ export const getLeagueStandings = async (
                   resolve(newError);
                   return;
                 }
+
                 const fantasyContent = (result as Record<string, unknown>).fantasy_content;
+
+                // Log the top-level keys of the parsed fantasy_content to aid debugging
+                if (fantasyContent && typeof fantasyContent === 'object') {
+                  console.log(
+                    '[yahooData] getLeagueStandings: fantasy_content top-level keys:',
+                    Object.keys(fantasyContent as Record<string, unknown>)
+                  );
+                  const leagueObj = (fantasyContent as Record<string, unknown>).league;
+                  if (leagueObj && typeof leagueObj === 'object') {
+                    console.log(
+                      '[yahooData] getLeagueStandings: fantasy_content.league top-level keys:',
+                      Object.keys(leagueObj as Record<string, unknown>)
+                    );
+                    const rawIsFinished = (leagueObj as Record<string, unknown>).is_finished;
+                    console.log(
+                      `[yahooData] getLeagueStandings: raw is_finished value from API: "${rawIsFinished}" (type: ${typeof rawIsFinished})`
+                    );
+                  } else {
+                    console.warn('[yahooData] getLeagueStandings: fantasy_content.league is missing or not an object');
+                  }
+                } else {
+                  console.warn('[yahooData] getLeagueStandings: fantasy_content is missing or not an object');
+                }
+
                 const teams = extractStandingsFromLeagueContent(fantasyContent);
                 if (!teams) {
                   const newError: ErrorResponse = {
@@ -916,7 +957,22 @@ export const getLeagueStandings = async (
                   resolve(newError);
                   return;
                 }
-                resolve(teams);
+
+                // Extract is_finished from the league node
+                const isFinishedRaw: unknown =
+                  fantasyContent &&
+                  typeof fantasyContent === 'object' &&
+                  (fantasyContent as Record<string, unknown>).league &&
+                  typeof (fantasyContent as Record<string, unknown>).league === 'object'
+                    ? ((fantasyContent as Record<string, unknown>).league as Record<string, unknown>).is_finished
+                    : undefined;
+
+                const is_finished: boolean = isFinishedRaw === '1' || isFinishedRaw === 1 || isFinishedRaw === true;
+                console.log(
+                  `[yahooData] getLeagueStandings: resolved is_finished=${is_finished} (raw="${isFinishedRaw}"), teams=${teams.length}`
+                );
+
+                resolve({ teams, is_finished });
               });
             });
           });
@@ -953,6 +1009,12 @@ export const getLeagueStandings = async (
 export const extractStandingsFromLeagueContent = (
   fantasyContent: unknown
 ): StandingsTeam[] | null => {
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: called, fantasyContent type:',
+    typeof fantasyContent,
+    '| is null:', fantasyContent === null
+  );
+
   if (!fantasyContent || typeof fantasyContent !== 'object') {
     console.error(
       '[yahooData] extractStandingsFromLeagueContent: fantasyContent is null or not an object'
@@ -965,31 +1027,54 @@ export const extractStandingsFromLeagueContent = (
 
   if (!league) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content'
+      '[yahooData] extractStandingsFromLeagueContent: league property is missing from fantasy_content.',
+      'Available keys:', Object.keys(fantasyContent as Record<string, unknown>)
     );
     return null;
   }
+
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: league keys:',
+    Object.keys(league as Record<string, unknown>)
+  );
 
   const teamsContainer = league.teams;
   if (!teamsContainer) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing'
+      '[yahooData] extractStandingsFromLeagueContent: league.teams is missing.',
+      'League keys present:', Object.keys(league as Record<string, unknown>)
     );
     return null;
   }
 
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: teamsContainer keys:',
+    Object.keys(teamsContainer as Record<string, unknown>),
+    '| count attr:', (teamsContainer as Record<string, unknown>).count
+  );
+
   const teamField = teamsContainer.team;
   if (!teamField) {
     console.error(
-      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing'
+      '[yahooData] extractStandingsFromLeagueContent: league.teams.team is missing.',
+      'teamsContainer keys:', Object.keys(teamsContainer as Record<string, unknown>)
     );
     return null;
   }
+
+  console.log(
+    '[yahooData] extractStandingsFromLeagueContent: teamField is array:', Array.isArray(teamField),
+    '| type:', typeof teamField
+  );
 
   // xml2js with explicitArray: false returns a single object when there is only one team
   const teams: StandingsTeam[] = Array.isArray(teamField)
     ? (teamField as StandingsTeam[])
     : [teamField as StandingsTeam];
+
+  console.log(
+    `[yahooData] extractStandingsFromLeagueContent: raw teams count: ${teams.length}`
+  );
 
   // Filter out non-object entries; warn for missing team_standings (still included
   // so standings columns can show "-").
@@ -1004,9 +1089,17 @@ export const extractStandingsFromLeagueContent = (
       console.warn(
         `[yahooData] extractStandingsFromLeagueContent: team "${team.name ?? team.team_key}" is missing team_standings`
       );
+    } else {
+      console.log(
+        `[yahooData] extractStandingsFromLeagueContent: team[${idx}] "${team.name}" rank="${team.team_standings.rank}" wins="${team.team_standings.outcome_totals?.wins}"`
+      );
     }
     return true;
   });
+
+  console.log(
+    `[yahooData] extractStandingsFromLeagueContent: validTeams count: ${validTeams.length}`
+  );
 
   return validTeams.length > 0 ? validTeams : null;
 };
