@@ -5,6 +5,7 @@ import type { LeagueAggregatedStats, StandingsTeam, TeamData, StatCategory } fro
 import StandingsTable from '../../../components/standings-table';
 import TeamsListFallback from '../../../components/teams-list-fallback';
 import LeagueStatsChart from '../../../components/league-stats-chart';
+import styles from './league.module.css';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -176,8 +177,15 @@ const League = () => {
     );
   }
 
+  const handleBackClick = () => {
+    router.push('/teamstable');
+  };
+
   return (
     <Layout>
+      <button className={styles.backButton} onClick={handleBackClick}>
+        ← Back to Teams
+      </button>
       <p>League ID: {gameid}</p>
       {aggregatedStats && (
         <p>
