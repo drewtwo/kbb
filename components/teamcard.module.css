@@ -110,6 +110,22 @@
   border-radius: 0.25rem;
 }
 
+.signInButton {
+  margin-top: 1rem;
+  padding: 0.625rem 1rem;
+  border: none;
+  border-radius: 0.25rem;
+  background-color: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.signInButton:hover {
+  background-color: #1d4ed8;
+}
+
 @media (max-width: 768px) {
   .grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

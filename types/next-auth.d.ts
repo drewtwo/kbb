@@ -23,6 +23,8 @@ declare module "next-auth" {
     accessToken?: string;
     /** Refresh token for token refresh */
     refreshToken?: string;
+    /** Error from session refresh or token handling */
+    error?: string;
   }
 }
 

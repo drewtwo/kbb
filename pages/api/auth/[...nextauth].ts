@@ -11,6 +11,13 @@ interface YahooProfile {
   picture: string;
 }
 
+interface RefreshableJWT extends JWT {
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpires?: number;
+  error?: string;
+}
+
 // Validate NEXTAUTH_SECRET at runtime
 if (!process.env.NEXTAUTH_SECRET) {
   const errorMessage = [
@@ -120,7 +127,7 @@ export default NextAuth({
       else if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
     },
-    async session({ session, token }: { session: Session; token: JWT }) {
+    async session({ session, token }: { session: Session; token: RefreshableJWT }) {
       // Hydrate session with user profile data and tokens from JWT
       if (session.user) {
         if (token.sub) session.user.id = token.sub as string;
@@ -128,24 +135,47 @@ export default NextAuth({
         if (token.email && typeof token.email === 'string') session.user.email = token.email;
         if (token.picture && typeof token.picture === 'string') session.user.image = token.picture;
       }
-      session.accessToken = token.accessToken as string | undefined;
-      session.refreshToken = token.refreshToken as string | undefined;
+      session.accessToken = token.accessToken;
+      session.refreshToken = token.refreshToken;
+      session.error = token.error;
+      if (token.error) {
+        console.warn('[NextAuth] Session callback detected token error:', token.error);
+      }
       return session;
     },
-    async jwt({ token, account, user }) {
-      // Preserve user profile information when storing tokens
-      if (account) {
-        token.accessToken = account.access_token;
-        token.refreshToken = account.refresh_token;
+    async jwt({ token, account, user }): Promise<RefreshableJWT> {
+      const jwtToken: RefreshableJWT = token as RefreshableJWT;
+
+      // Initial sign in
+      if (account && user) {
+        console.info('[NextAuth] JWT callback initial sign-in for user', user.id);
+        jwtToken.accessToken = account.access_token;
+        jwtToken.refreshToken = account.refresh_token ?? jwtToken.refreshToken;
+        if (account.expires_at) {
+          jwtToken.accessTokenExpires = Number(account.expires_at) * 1000;
+        } else if (account.expires_in) {
+          jwtToken.accessTokenExpires = Date.now() + Number(account.expires_in) * 1000;
+        }
+        jwtToken.sub = user.id;
+        if (user.name) jwtToken.name = user.name;
+        if (user.email) jwtToken.email = user.email;
+        if (user.image) jwtToken.picture = user.image;
+        return jwtToken;
       }
-      // Store user profile data from the user object (available on sign-in)
-      if (user) {
-        token.sub = user.id;
-        if (user.name) token.name = user.name;
-        if (user.email) token.email = user.email;
-        if (user.image) token.picture = user.image;
+
+      // Return previous token if the access token has not expired yet
+      if (jwtToken.accessTokenExpires && Date.now() < jwtToken.accessTokenExpires) {
+        return jwtToken;
       }
-      return token;
+
+      // Access token has expired, try to refresh it
+      if (jwtToken.refreshToken) {
+        return refreshAccessToken(jwtToken);
+      }
+
+      // No refresh token available - return as-is and let the client handle sign-in
+      jwtToken.error = 'RefreshAccessTokenError';
+      return jwtToken;
     },
   },
 
@@ -155,4 +185,84 @@ export default NextAuth({
 
   // Enable debug messages in the console if you are having problems
   debug: false,
+  logger: {
+    error(code, metadata) {
+      console.error('[NextAuth][error]', code, metadata);
+    },
+    warn(code) {
+      console.warn('[NextAuth][warn]', code);
+    },
+    debug(code, metadata) {
+      console.debug('[NextAuth][debug]', code, metadata);
+    },
+  },
 });
+
+async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT> {
+  try {
+    const url = process.env.YAHOO_TOKEN_URL;
+    const clientId = process.env.YAHOO_CLIENT_ID;
+    const clientSecret = process.env.YAHOO_CLIENT_SECRET;
+    const refreshToken = token.refreshToken;
+
+    if (!url || !clientId || !clientSecret) {
+      console.error('[NextAuth] Missing Yahoo token refresh environment variables');
+      token.error = 'RefreshAccessTokenError';
+      return token;
+    }
+
+    if (!refreshToken) {
+      console.error('[NextAuth] No refresh token available to refresh access token');
+      token.error = 'RefreshAccessTokenError';
+      return token;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+
+    const responseText = await response.text();
+    let refreshedTokens: Record<string, unknown> = {};
+    try {
+      refreshedTokens = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[NextAuth] Failed to parse Yahoo refresh response', parseError, responseText);
+      token.error = 'RefreshAccessTokenError';
+      return token;
+    }
+
+    if (!response.ok || typeof refreshedTokens.access_token !== 'string') {
+      console.error('[NextAuth] Failed to refresh access token', response.status, refreshedTokens);
+      token.error = 'RefreshAccessTokenError';
+      return token;
+    }
+
+    const accessToken = refreshedTokens.access_token as string;
+    const nextRefreshToken = typeof refreshedTokens.refresh_token === 'string'
+      ? refreshedTokens.refresh_token
+      : token.refreshToken;
+    const expiresIn = typeof refreshedTokens.expires_in === 'number'
+      ? refreshedTokens.expires_in
+      : typeof refreshedTokens.expires_in === 'string'
+      ? Number(refreshedTokens.expires_in)
+      : 3600;
+
+    token.accessToken = accessToken;
+    token.accessTokenExpires = Date.now() + expiresIn * 1000;
+    token.refreshToken = nextRefreshToken;
+    return token;
+  } catch (error) {
+    console.error('[NextAuth] Error refreshing access token', error);
+    token.error = 'RefreshAccessTokenError';
+    return token;
+  }
+}

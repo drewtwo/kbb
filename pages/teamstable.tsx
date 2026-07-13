@@ -1,6 +1,6 @@
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
-import { useSession } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import teamCardStyles from '../components/teamcard.module.css';
 import Layout from '../components/layout';
 import type { YahooGame, YahooTeam } from '../types/yahooFantasy';
@@ -67,6 +67,25 @@ export default function Index() {
       <Layout>
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>Authentication error: Access token not available. Please sign in again.</p>
+          <button className={teamCardStyles.signInButton} type="button" onClick={() => signIn()}>
+            Sign in again
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (session?.error) {
+    console.warn('[teamstable] Session error present:', session.error);
+    return (
+      <Layout>
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>
+            Session error: {session.error}. Please sign in again.
+          </p>
+          <button className={teamCardStyles.signInButton} type="button" onClick={() => signIn()}>
+            Sign in again
+          </button>
         </div>
       </Layout>
     );
@@ -97,7 +116,7 @@ export default function Index() {
   if (data && typeof data === 'object' && 'error' in data) {
     const errorData = data as ApiResponse;
     console.error('[teamstable] API returned error:', errorData);
-    
+
     // Handle 401 Unauthorized - token issue
     if (errorData.statusCode === 401) {
       return (
@@ -106,11 +125,14 @@ export default function Index() {
             <p className={teamCardStyles.errorText}>
               Authentication error: Your session has expired. Please sign in again.
             </p>
+            <button className={teamCardStyles.signInButton} type="button" onClick={() => signIn()}>
+              Sign in again
+            </button>
           </div>
         </Layout>
       );
     }
-    
+
     return (
       <Layout>
         <div className={teamCardStyles.errorContainer}>
