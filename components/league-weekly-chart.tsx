@@ -13,7 +13,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import type { StatCategory, LeagueWeeklyStats, StatEntry } from '../utils/yahooData';
-import { TEAM_COLORS } from '../utils/yahooData';
+import { TEAM_COLORS, buildTeamColorMap } from '../utils/yahooData';
 import styles from './league-weekly-chart.module.css';
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Title, Tooltip, Legend);
@@ -71,10 +71,12 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
     (_: unknown, i: number) => `Week ${i + 1}`
   );
 
+  const teamColorMap = buildTeamColorMap(teamKeys, TEAM_COLORS);
+
   // Build one dataset per team
-  const datasets = teamKeys.map((teamKey: string, idx: number) => {
+  const datasets = teamKeys.map((teamKey: string) => {
     const teamEntry = weeklyStats[teamKey];
-    const color: string = TEAM_COLORS[idx % TEAM_COLORS.length];
+    const color: string = teamColorMap[teamKey] ?? TEAM_COLORS[0];
     const solidColor: string = color.replace('0.8)', '1)');
 
     const data: (number | null)[] = teamEntry.weekly.map(
@@ -111,7 +113,28 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
     };
   });
 
-  const chartData = { labels, datasets };
+  const weeksToDisplay = labels.map((_, weekIndex: number) =>
+    datasets.some((dataset) => {
+      const value = dataset.data[weekIndex];
+      return typeof value === 'number' && value !== 0;
+    })
+  );
+
+  const filteredLabels = labels.filter((_, index: number) => weeksToDisplay[index]);
+  const filteredDatasets = datasets.map((dataset) => ({
+    ...dataset,
+    data: dataset.data.filter((_, index: number) => weeksToDisplay[index]),
+  }));
+
+  if (filteredLabels.length === 0) {
+    return (
+      <div className={styles.chartEmpty}>
+        <p>No weekly data available to display.</p>
+      </div>
+    );
+  }
+
+  const chartData = { labels: filteredLabels, datasets: filteredDatasets };
 
   const chartOptions: ChartOptions<'line'> = {
     responsive: true,

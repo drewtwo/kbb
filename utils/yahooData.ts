@@ -1635,6 +1635,23 @@ export const TEAM_COLORS: string[] = [
 ];
 
 /**
+ * Assigns a stable, deterministic color to each team based on the team key.
+ * This keeps the line chart and bar chart colors aligned even when the
+ * displayed order differs between charts.
+ */
+export const buildTeamColorMap = (
+  teamKeys: string[],
+  colors: string[] = TEAM_COLORS
+): Record<string, string> => {
+  const sortedTeamKeys = [...teamKeys].sort((a: string, b: string) => a.localeCompare(b));
+
+  return sortedTeamKeys.reduce<Record<string, string>>((accumulator, teamKey, index) => {
+    accumulator[teamKey] = colors[index % colors.length];
+    return accumulator;
+  }, {});
+};
+
+/**
  * The shape of a Chart.js dataset object used by the Bar chart.
  */
 export interface ChartDataset {
@@ -1669,28 +1686,33 @@ export const buildChartData = (
   statId: string,
   colors: string[]
 ): ChartData => {
-  const teamEntries: { name: string; value: number }[] = Object.values(
+  const teamEntries: { teamKey: string; name: string; value: number }[] = Object.entries(
     aggregatedStats.teams
-  ).map((team: AggregatedTeamStats) => ({
+  ).map(([teamKey, team]: [string, AggregatedTeamStats]) => ({
+    teamKey,
     name: team.team_name,
     value: team.stats[statId] ?? 0,
   }));
 
-  // Sort descending by value so the highest-performing team appears first
+  // Sort descending by value so the highest-performing team appears first.
   teamEntries.sort(
-    (a: { name: string; value: number }, b: { name: string; value: number }) =>
+    (a: { teamKey: string; name: string; value: number }, b: { teamKey: string; name: string; value: number }) =>
       b.value - a.value
   );
 
+  const colorMap = buildTeamColorMap(
+    teamEntries.map((entry: { teamKey: string; name: string; value: number }) => entry.teamKey),
+    colors
+  );
+
   const labels: string[] = teamEntries.map(
-    (entry: { name: string; value: number }) => entry.name
+    (entry: { teamKey: string; name: string; value: number }) => entry.name
   );
   const values: number[] = teamEntries.map(
-    (entry: { name: string; value: number }) => entry.value
+    (entry: { teamKey: string; name: string; value: number }) => entry.value
   );
-  const backgroundColors: string[] = teamEntries.map(
-    (_entry: { name: string; value: number }, idx: number) =>
-      colors[idx % colors.length]
+  const backgroundColors: string[] = teamEntries.map((entry: { teamKey: string; name: string; value: number }) =>
+    colorMap[entry.teamKey] ?? colors[0]
   );
   const borderColors: string[] = backgroundColors.map((color: string) =>
     color.replace('0.8)', '1)')

@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import type { StandingsTeam } from '../utils/yahooData';
+import { TEAM_COLORS, buildTeamColorMap } from '../utils/yahooData';
 import styles from './standings.module.css';
 
 interface StandingsTableProps {
@@ -47,6 +48,10 @@ const StandingsTable: React.FC<StandingsTableProps> = ({ gameId, standings, isFi
   const winner: StandingsTeam | undefined = isFinished
     ? standings.find((t: StandingsTeam) => t.team_standings?.rank === '1')
     : undefined;
+  const teamColorMap = buildTeamColorMap(
+    standings.map((team: StandingsTeam) => team.team_key),
+    TEAM_COLORS
+  );
 
   return (
     <div>
@@ -90,12 +95,16 @@ const StandingsTable: React.FC<StandingsTableProps> = ({ gameId, standings, isFi
             const ptsAgainst: string = record?.points_against ?? '-';
             const playoffSeed: string = record?.playoff_seed ?? '-';
             const rank: string = record?.rank ?? '-';
+            const teamColor: string = teamColorMap[team.team_key] ?? TEAM_COLORS[0];
 
             return (
               <tr key={team.team_id}>
                 <td className={styles.rankCell}>{rank}</td>
                 <td className={styles.teamNameCell}>
-                  <Link href={`/game/${gameId}/team/${team.team_id}`}>
+                  <Link
+                    href={`/game/${gameId}/team/${team.team_id}`}
+                    style={{ color: teamColor }}
+                  >
                     {team.name}
                   </Link>
                 </td>
