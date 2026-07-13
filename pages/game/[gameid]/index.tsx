@@ -226,12 +226,6 @@ const League = () => {
         ← Back to Teams
       </button>
       <p>League ID: {gameid}</p>
-      {aggregatedStats && (
-        <p>
-          Season stats aggregated across weeks {aggregatedStats.week_range.start}–
-          {aggregatedStats.week_range.end}
-        </p>
-      )}
       {standings ? (
         <StandingsTable
           gameId={gameIdStr}

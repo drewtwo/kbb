@@ -13,7 +13,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "validate-env": "node lib/validate-env.js"
+    "validate-env": "node lib/validate-env.js",
+    "test": "jest"
   },
   "dependencies": {
     "chart.js": "^4.4.0",
@@ -26,6 +27,9 @@
     "xml2js": "^0.4.23"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/jest": "^30.0.0",
     "@types/node": "20.14.0",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
@@ -33,6 +37,10 @@
     "dotenv": "^16.0.3",
     "eslint": "9.0.0",
     "eslint-config-next": "16.2.10",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "ts-jest": "^29.4.11",
     "typescript": "5.7.2"
   }
 }
