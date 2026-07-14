@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { signIn, useSession } from 'next-auth/react';
 import teamCardStyles from '../components/teamcard.module.css';
 import Layout from '../components/layout';
+import { getEmptyLeaguesMessage } from '../lib/teamstable-empty-state';
 import type { YahooGame, YahooTeam } from '../types/yahooFantasy';
 
 const TeamCard = dynamic(() => import('../components/teamcard'), {
@@ -176,15 +177,7 @@ export default function Index() {
   }
 
   // Validate that games array is not empty
-  if (data.games.length === 0) {
-    return (
-      <Layout>
-        <div className={teamCardStyles.errorContainer}>
-          <p className={teamCardStyles.errorText}>No leagues found. Please check your Yahoo Fantasy account.</p>
-        </div>
-      </Layout>
-    );
-  }
+  const emptyLeaguesMessage = getEmptyLeaguesMessage(sport);
 
   return (
     <Layout>
@@ -204,8 +197,13 @@ export default function Index() {
         </select>
         {isValidating && <span>Refreshing...</span>}
       </div>
-      <div className={teamCardStyles.grid}>
-        {data.games.map((game: YahooGame) => {
+      {data.games.length === 0 ? (
+        <div className={teamCardStyles.errorContainer}>
+          <p className={teamCardStyles.errorText}>{emptyLeaguesMessage}</p>
+        </div>
+      ) : (
+        <div className={teamCardStyles.grid}>
+          {data.games.map((game: YahooGame) => {
           // Validate game has required properties
           if (!game || !game.teams || !game.teams.team) {
             console.warn('[teamstable] Skipping invalid game object:', game);
@@ -235,7 +233,8 @@ export default function Index() {
             ></TeamCard>
           );
         })}
-      </div>
+        </div>
+      )}
     </Layout>
   );
 }
