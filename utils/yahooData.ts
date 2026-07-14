@@ -2,6 +2,7 @@ import { getToken } from 'next-auth/jwt';
 import https from 'https';
 import zlib from 'zlib';
 import xml2js from 'xml2js';
+import { IncomingMessage } from 'http';
 import { NextApiRequest } from 'next';
 
 const secret = process.env.NEXTAUTH_SECRET;
@@ -14,6 +15,73 @@ interface ErrorResponse {
   error: string;
   statusCode?: number;
 }
+
+export type SportFilter = 'all' | 'mlb' | 'nba' | 'nfl' | 'nhl';
+
+const SPORT_PATH_SUFFIX: Record<SportFilter, string> = {
+  all: '',
+  mlb: ';game_codes=mlb',
+  nba: ';game_codes=nba',
+  nfl: ';game_codes=nfl',
+  nhl: ';game_codes=nhl',
+};
+
+const normalizeSport = (sport?: string): SportFilter => {
+  if (!sport) {
+    return 'mlb';
+  }
+
+  const normalized = sport.toLowerCase();
+  if (normalized === 'mlb' || normalized === 'nba' || normalized === 'nfl' || normalized === 'nhl' || normalized === 'all') {
+    return normalized as SportFilter;
+  }
+
+  return 'mlb';
+};
+
+const buildUserGamesPath = (sport: SportFilter): string => {
+  const suffix = SPORT_PATH_SUFFIX[sport];
+  return `/fantasy/v2/users;use_login=1/games${suffix}/teams`;
+};
+
+export const decodeYahooResponseBody = async (
+  response: IncomingMessage,
+  chunks: Buffer[]
+): Promise<string> => {
+  const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
+  const contentEncodingHeader = response.headers['content-encoding'] as string | string[] | undefined;
+  const contentEncoding = typeof contentEncodingHeader === 'string'
+    ? contentEncodingHeader.toLowerCase()
+    : Array.isArray(contentEncodingHeader)
+      ? contentEncodingHeader.join(',').toLowerCase()
+      : '';
+
+  if (contentEncoding.includes('gzip')) {
+    return new Promise<string>((resolve, reject) => {
+      zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(dezipped.toString());
+      });
+    });
+  }
+
+  if (contentEncoding.includes('deflate')) {
+    return new Promise<string>((resolve, reject) => {
+      zlib.inflate(buffer as unknown as zlib.InputType, (err, inflated) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(inflated.toString());
+      });
+    });
+  }
+
+  return buffer.toString();
+};
 
 export interface TeamData {
   team_key: string;
@@ -640,7 +708,7 @@ const validateToken = (token: Record<string, unknown> | null): boolean => {
   return true;
 };
 
-export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
+const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promise<unknown> => {
   return new Promise((resolve) => {
     (async () => {
       try {
@@ -650,7 +718,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         // Validate token before making request
         if (!validateToken(token)) {
           const errorMsg = 'Invalid or missing authentication token';
-          console.error(`[yahooData] getTeams: ${errorMsg}`);
+          console.error(`[yahooData] fetchTeams: ${errorMsg}`);
           resolve({ error: errorMsg, statusCode: 401 });
           return;
         }
@@ -658,7 +726,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
-          path: '/fantasy/v2/users;use_login=1/games/teams',
+          path: buildUserGamesPath(sportFilter),
           method: 'GET',
           headers: {
             Accept: '*/*',
@@ -685,16 +753,10 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
             chunks.push(chunk);
           });
 
-          response.on('end', function () {
-            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
-              if (err) {
-                console.error(`[yahooData] getTeams Decompression error: ${err}`);
-                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
-                resolve(newError);
-                return;
-              }
-              parser.parseString(dezipped.toString(), function (parseErr, result) {
+          response.on('end', async function () {
+            try {
+              const body = await decodeYahooResponseBody(response, chunks);
+              parser.parseString(body, function (parseErr, result) {
                 if (parseErr) {
                   console.error(`[yahooData] getTeams XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
@@ -702,7 +764,7 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
                   return;
                 }
                 const fantasyContent = (result as Record<string, unknown>).fantasy_content;
-                
+
                 // Extract games array from nested fantasy_content structure
                 if (fantasyContent && typeof fantasyContent === 'object') {
                   const users = (fantasyContent as Record<string, unknown>).users;
@@ -720,10 +782,14 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
                     }
                   }
                 }
-                
+
                 resolve(games);
               });
-            });
+            } catch (err) {
+              console.error(`[yahooData] getTeams Decompression error: ${err}`);
+              const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+              resolve(newError);
+            }
           });
         });
 
@@ -736,11 +802,28 @@ export const getTeams = async (req: NextApiRequest): Promise<unknown> => {
         request.end();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error(`[yahooData] Exception in getTeams: ${errorMsg}`);
-        resolve({ error: `Exception in getTeams: ${errorMsg}` });
+        console.error(`[yahooData] Exception in fetchTeams: ${errorMsg}`);
+        resolve({ error: `Exception in fetchTeams: ${errorMsg}` });
       }
     })();
   });
+};
+
+export const getTeams = async (
+  req: NextApiRequest,
+  sport: string = 'mlb'
+): Promise<unknown> => {
+  const sportFilter = normalizeSport(sport);
+  const result = await fetchTeams(req, sportFilter);
+
+  if (isErrorResponse(result) && sportFilter !== 'mlb') {
+    console.warn(
+      `[yahooData] getTeams: retrying with mlb after error when requesting sport="${sportFilter}"`
+    );
+    return fetchTeams(req, 'mlb');
+  }
+
+  return result;
 };
 
 export const getLeagueTeams = async (
@@ -792,16 +875,10 @@ export const getLeagueTeams = async (
             chunks.push(chunk);
           });
 
-          response.on('end', function () {
-            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
-              if (err) {
-                console.error(`[yahooData] getLeagueTeams Decompression error: ${err}`);
-                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
-                resolve(newError);
-                return;
-              }
-              parser.parseString(dezipped.toString(), function (parseErr, result) {
+          response.on('end', async function () {
+            try {
+              const body = await decodeYahooResponseBody(response, chunks);
+              parser.parseString(body, function (parseErr, result) {
                 if (parseErr) {
                   console.error(`[yahooData] getLeagueTeams XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
@@ -811,7 +888,11 @@ export const getLeagueTeams = async (
                 league = (result as Record<string, unknown>).fantasy_content;
                 resolve(league);
               });
-            });
+            } catch (err) {
+              console.error(`[yahooData] getLeagueTeams Decompression error: ${err}`);
+              const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+              resolve(newError);
+            }
           });
         });
 
@@ -880,16 +961,10 @@ export const getLeagueSettings = async (
             chunks.push(chunk);
           });
 
-          response.on('end', function () {
-            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
-              if (err) {
-                console.error(`[yahooData] getLeagueSettings Decompression error: ${err}`);
-                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
-                resolve(newError);
-                return;
-              }
-              parser.parseString(dezipped.toString(), function (parseErr, result) {
+          response.on('end', async function () {
+            try {
+              const body = await decodeYahooResponseBody(response, chunks);
+              parser.parseString(body, function (parseErr, result) {
                 if (parseErr) {
                   console.error(`[yahooData] getLeagueSettings XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
@@ -899,7 +974,11 @@ export const getLeagueSettings = async (
                 league = (result as Record<string, unknown>).fantasy_content;
                 resolve(league);
               });
-            });
+            } catch (err) {
+              console.error(`[yahooData] getLeagueSettings Decompression error: ${err}`);
+              const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+              resolve(newError);
+            }
           });
         });
 
@@ -998,16 +1077,10 @@ export const getLeagueStandings = async (
             chunks.push(chunk);
           });
 
-          response.on('end', function () {
-            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
-              if (err) {
-                console.error(`[yahooData] getLeagueStandings Decompression error: ${err}`);
-                const newError: ErrorResponse = { error: `Decompression error: ${err}` };
-                resolve(newError);
-                return;
-              }
-              parser.parseString(dezipped.toString(), function (parseErr, result) {
+          response.on('end', async function () {
+            try {
+              const body = await decodeYahooResponseBody(response, chunks);
+              parser.parseString(body, function (parseErr, result) {
                 if (parseErr) {
                   console.error(`[yahooData] getLeagueStandings XML parsing error: ${parseErr}`);
                   const newError: ErrorResponse = { error: `XML parsing error: ${parseErr}` };
@@ -1065,7 +1138,11 @@ export const getLeagueStandings = async (
 
                 resolve({ teams, is_finished });
               });
-            });
+            } catch (err) {
+              console.error(`[yahooData] getLeagueStandings Decompression error: ${err}`);
+              const newError: ErrorResponse = { error: `Decompression error: ${err}` };
+              resolve(newError);
+            }
           });
         });
 
@@ -1425,20 +1502,10 @@ export const getWeekStats = async (
             chunks.push(chunk);
           });
 
-          response.on('end', function () {
-            const buffer = Buffer.concat(chunks as unknown as Uint8Array[]);
-            zlib.gunzip(buffer as unknown as zlib.InputType, (err, dezipped) => {
-              if (err) {
-                console.error(
-                  `[yahooData] getWeekStats Decompression error for week ${weekLabel}: ${err}`
-                );
-                const newError: ErrorResponse = {
-                  error: `Decompression error: ${err}`,
-                };
-                resolve(newError);
-                return;
-              }
-              parser.parseString(dezipped.toString(), function (parseErr, result) {
+          response.on('end', async function () {
+            try {
+              const body = await decodeYahooResponseBody(response, chunks);
+              parser.parseString(body, function (parseErr, result) {
                 if (parseErr) {
                   console.error(
                     `[yahooData] getWeekStats XML parsing error for week ${weekLabel}: ${parseErr}`
@@ -1472,7 +1539,15 @@ export const getWeekStats = async (
 
                 resolve(fantasyContent);
               });
-            });
+            } catch (err) {
+              console.error(
+                `[yahooData] getWeekStats Decompression error for week ${weekLabel}: ${err}`
+              );
+              const newError: ErrorResponse = {
+                error: `Decompression error: ${err}`,
+              };
+              resolve(newError);
+            }
           });
         });
 

@@ -14,6 +14,7 @@ import TeamsListFallback from '../../../components/teams-list-fallback';
 import LeagueStatsChart from '../../../components/league-stats-chart';
 import LeagueWeeklyChart from '../../../components/league-weekly-chart';
 import styles from './league.module.css';
+import { getRenderableStandings, isValidTeamsArray } from '../../../lib/standings-validation';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -50,54 +51,6 @@ interface GameInfoData {
   stat_categories?: StatCategory[];
 }
 
-/**
- * Validates that a standings array is non-empty and that every entry has the
- * minimum required fields (team_key, team_id, name).  Entries that pass
- * validation but are missing team_standings will still be rendered — the
- * StandingsTable component handles missing record fields gracefully with "-".
- */
-const isValidStandingsArray = (standings: unknown): standings is StandingsTeam[] => {
-  if (!Array.isArray(standings) || standings.length === 0) {
-    console.warn(
-      '[GamePage] isValidStandingsArray: standings is not a non-empty array.',
-      'Value:', standings
-    );
-    return false;
-  }
-  const result: boolean = standings.every(
-    (t: unknown) =>
-      t !== null &&
-      typeof t === 'object' &&
-      typeof (t as StandingsTeam).team_key === 'string' &&
-      typeof (t as StandingsTeam).team_id === 'string' &&
-      typeof (t as StandingsTeam).name === 'string'
-  );
-  if (!result) {
-    console.warn(
-      '[GamePage] isValidStandingsArray: one or more standings entries failed field validation.',
-      'Entries:', standings
-    );
-  }
-  return result;
-};
-
-/**
- * Validates that an extracted_teams array is non-empty and that every entry
- * has the minimum required fields (team_key, team_id, name).
- */
-const isValidTeamsArray = (teams: unknown): teams is TeamData[] => {
-  if (!Array.isArray(teams) || teams.length === 0) {
-    return false;
-  }
-  return teams.every(
-    (t: unknown) =>
-      t !== null &&
-      typeof t === 'object' &&
-      typeof (t as TeamData).team_key === 'string' &&
-      typeof (t as TeamData).team_id === 'string' &&
-      typeof (t as TeamData).name === 'string'
-  );
-};
 
 const League = () => {
   const router = useRouter();
@@ -145,9 +98,7 @@ const League = () => {
   // malformed or partially-missing data surfaces a clear fallback message
   // rather than a runtime crash inside StandingsTable.
   const rawStandings: StandingsTeam[] | undefined = data.standings;
-  const standings: StandingsTeam[] | undefined = isValidStandingsArray(rawStandings)
-    ? rawStandings
-    : undefined;
+  const standings: StandingsTeam[] | undefined = getRenderableStandings(rawStandings);
 
   if (rawStandings !== undefined && standings === undefined) {
     // The API returned a standings field but it failed validation — log details

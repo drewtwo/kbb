@@ -1,3 +1,4 @@
+import { useState, type ChangeEvent } from 'react';
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
 import { signIn, useSession } from 'next-auth/react';
@@ -17,6 +18,14 @@ const fetcher = (url: string) => fetch(url).then((res) => {
   return res.json();
 });
 
+const SPORT_OPTIONS = [
+  { value: 'mlb', label: 'MLB' },
+  { value: 'nba', label: 'NBA' },
+  { value: 'nfl', label: 'NFL' },
+  { value: 'nhl', label: 'NHL' },
+  { value: 'all', label: 'All sports' },
+];
+
 interface ApiResponse {
   games?: YahooGame[];
   error?: string;
@@ -24,8 +33,12 @@ interface ApiResponse {
 }
 
 export default function Index() {
+  const [sport, setSport] = useState('mlb');
   const { data: session, status } = useSession();
-  const { data, error } = useSwr(status === 'authenticated' ? '/api/teams' : null, fetcher);
+  const { data, error, isValidating } = useSwr(
+    status === 'authenticated' ? `/api/teams?sport=${encodeURIComponent(sport)}` : null,
+    fetcher
+  );
 
   // Check authentication status
   if (status === 'loading') {
@@ -47,6 +60,10 @@ export default function Index() {
       </Layout>
     );
   }
+
+  const handleSportChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSport(event.target.value);
+  };
 
   // Validate session has required data
   if (status === 'authenticated' && !session?.user) {
@@ -171,6 +188,22 @@ export default function Index() {
 
   return (
     <Layout>
+      <div className={teamCardStyles.toolbar}>
+        <label htmlFor="sport-selector">Game type:</label>
+        <select
+          id="sport-selector"
+          value={sport}
+          onChange={handleSportChange}
+          disabled={status !== 'authenticated' || isValidating}
+        >
+          {SPORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {isValidating && <span>Refreshing...</span>}
+      </div>
       <div className={teamCardStyles.grid}>
         {data.games.map((game: YahooGame) => {
           // Validate game has required properties

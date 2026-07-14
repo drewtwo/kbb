@@ -13,7 +13,11 @@ export default async function teams(
   res: NextApiResponse<ResponseData>
 ) {
   try {
-    const teamsData = await getTeams(req);
+    const requestedSport = Array.isArray(req.query.sport)
+      ? req.query.sport[0]
+      : req.query.sport;
+
+    const teamsData = await getTeams(req, requestedSport ?? 'mlb');
     
     // Check if the response contains an error
     if (teamsData && typeof teamsData === 'object' && 'error' in teamsData) {
