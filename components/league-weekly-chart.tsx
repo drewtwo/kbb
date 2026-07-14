@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,6 +38,7 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
   statCategories,
   selectedStatId,
 }) => {
+  const [hoveredDatasetIndex, setHoveredDatasetIndex] = useState<number | null>(null);
   const teamKeys: string[] = Object.keys(weeklyStats);
 
   if (teamKeys.length === 0 || statCategories.length === 0) {
@@ -74,10 +75,13 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
   const teamColorMap = buildTeamColorMap(teamKeys, TEAM_COLORS);
 
   // Build one dataset per team
-  const datasets = teamKeys.map((teamKey: string) => {
+  const datasets = teamKeys.map((teamKey: string, index: number) => {
     const teamEntry = weeklyStats[teamKey];
     const color: string = teamColorMap[teamKey] ?? TEAM_COLORS[0];
     const solidColor: string = color.replace('0.8)', '1)');
+    const isHovered = hoveredDatasetIndex === index;
+    const displayColor: string = isHovered ? solidColor : color.replace('0.8)', '0.2)');
+    const displayBorderColor: string = isHovered ? solidColor : color.replace('0.8)', '0.25)');
 
     const data: (number | null)[] = teamEntry.weekly.map(
       (weekStats: StatEntry[]) => {
@@ -103,10 +107,10 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
     return {
       label: teamEntry.team_name,
       data,
-      borderColor: solidColor,
-      backgroundColor: color,
-      borderWidth: 2,
-      pointRadius: 3,
+      borderColor: displayBorderColor,
+      backgroundColor: displayColor,
+      borderWidth: isHovered ? 2.5 : 1.75,
+      pointRadius: isHovered ? 3 : 1.5,
       pointHoverRadius: 5,
       tension: 0.3,
       spanGaps: true,
@@ -143,6 +147,14 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
       legend: {
         display: true,
         position: 'bottom' as const,
+        onHover: (_event: unknown, legendItem: { datasetIndex?: number | undefined }) => {
+          if (typeof legendItem.datasetIndex === 'number') {
+            setHoveredDatasetIndex(legendItem.datasetIndex);
+          }
+        },
+        onLeave: () => {
+          setHoveredDatasetIndex(null);
+        },
         labels: {
           font: { size: 11 },
           boxWidth: 14,
