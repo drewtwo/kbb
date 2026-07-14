@@ -4,20 +4,26 @@ import dynamic from 'next/dynamic';
 import { signIn, useSession } from 'next-auth/react';
 import teamCardStyles from '../components/teamcard.module.css';
 import Layout from '../components/layout';
-import { getEmptyLeaguesMessage } from '../lib/teamstable-empty-state';
+import { getEmptyLeaguesMessage, isEmptyLeagueError } from '../lib/teamstable-empty-state';
 import type { YahooGame, YahooTeam } from '../types/yahooFantasy';
 
 const TeamCard = dynamic(() => import('../components/teamcard'), {
   ssr: false,
 });
 
-const fetcher = (url: string) => fetch(url).then((res) => {
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  const payload = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const error = new Error('Failed to fetch');
-    throw error;
+    return {
+      error: payload?.error || 'Failed to fetch',
+      statusCode: res.status,
+    } as ApiResponse;
   }
-  return res.json();
-});
+
+  return payload;
+};
 
 const SPORT_OPTIONS = [
   { value: 'mlb', label: 'MLB' },
@@ -111,16 +117,9 @@ export default function Index() {
 
   if (error) {
     console.error('[teamstable] Failed to load leagues:', error);
-    return (
-      <Layout>
-        <div className={teamCardStyles.errorContainer}>
-          <p className={teamCardStyles.errorText}>Failed to load leagues. Please try again later.</p>
-        </div>
-      </Layout>
-    );
   }
 
-  if (!data) {
+  if (!data && !error) {
     return (
       <Layout>
         <div className={teamCardStyles.loadingContainer}>
@@ -130,15 +129,34 @@ export default function Index() {
     );
   }
 
+  const isEmptyState = Boolean(
+    data && typeof data === 'object' && 'error' in data && isEmptyLeagueError((data as ApiResponse).error)
+  );
+
   // Check if data contains an error response
   if (data && typeof data === 'object' && 'error' in data) {
     const errorData = data as ApiResponse;
     console.error('[teamstable] API returned error:', errorData);
 
-    // Handle 401 Unauthorized - token issue
     if (errorData.statusCode === 401) {
       return (
         <Layout>
+          <div className={teamCardStyles.toolbar}>
+            <label htmlFor="sport-selector">Game type:</label>
+            <select
+              id="sport-selector"
+              value={sport}
+              onChange={handleSportChange}
+              disabled={status !== 'authenticated' || isValidating}
+            >
+              {SPORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {isValidating && <span>Refreshing...</span>}
+          </div>
           <div className={teamCardStyles.errorContainer}>
             <p className={teamCardStyles.errorText}>
               Authentication error: Your session has expired. Please sign in again.
@@ -151,8 +169,50 @@ export default function Index() {
       );
     }
 
+    if (isEmptyState) {
+      return (
+        <Layout>
+          <div className={teamCardStyles.toolbar}>
+            <label htmlFor="sport-selector">Game type:</label>
+            <select
+              id="sport-selector"
+              value={sport}
+              onChange={handleSportChange}
+              disabled={status !== 'authenticated' || isValidating}
+            >
+              {SPORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {isValidating && <span>Refreshing...</span>}
+          </div>
+          <div className={teamCardStyles.errorContainer}>
+            <p className={teamCardStyles.errorText}>{getEmptyLeaguesMessage(sport)}</p>
+          </div>
+        </Layout>
+      );
+    }
+
     return (
       <Layout>
+        <div className={teamCardStyles.toolbar}>
+          <label htmlFor="sport-selector">Game type:</label>
+          <select
+            id="sport-selector"
+            value={sport}
+            onChange={handleSportChange}
+            disabled={status !== 'authenticated' || isValidating}
+          >
+            {SPORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {isValidating && <span>Refreshing...</span>}
+        </div>
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>
             Error loading leagues: {errorData.error || 'Unknown error'}
@@ -167,6 +227,22 @@ export default function Index() {
     console.error('[teamstable] Invalid data structure: missing or invalid games array', data);
     return (
       <Layout>
+        <div className={teamCardStyles.toolbar}>
+          <label htmlFor="sport-selector">Game type:</label>
+          <select
+            id="sport-selector"
+            value={sport}
+            onChange={handleSportChange}
+            disabled={status !== 'authenticated' || isValidating}
+          >
+            {SPORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {isValidating && <span>Refreshing...</span>}
+        </div>
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>
             Error: Invalid response format from server. Please try again later.
@@ -175,9 +251,6 @@ export default function Index() {
       </Layout>
     );
   }
-
-  // Validate that games array is not empty
-  const emptyLeaguesMessage = getEmptyLeaguesMessage(sport);
 
   return (
     <Layout>
@@ -199,40 +272,40 @@ export default function Index() {
       </div>
       {data.games.length === 0 ? (
         <div className={teamCardStyles.errorContainer}>
-          <p className={teamCardStyles.errorText}>{emptyLeaguesMessage}</p>
+          <p className={teamCardStyles.errorText}>{getEmptyLeaguesMessage(sport)}</p>
         </div>
       ) : (
         <div className={teamCardStyles.grid}>
           {data.games.map((game: YahooGame) => {
-          // Validate game has required properties
-          if (!game || !game.teams || !game.teams.team) {
-            console.warn('[teamstable] Skipping invalid game object:', game);
-            return null;
-          }
+            // Validate game has required properties
+            if (!game || !game.teams || !game.teams.team) {
+              console.warn('[teamstable] Skipping invalid game object:', game);
+              return null;
+            }
 
-          return Array.isArray(game.teams.team) ? (
-            game.teams.team.map((inner_team: YahooTeam) => {
-              // Validate team has required properties
-              if (!inner_team || !inner_team.team_key) {
-                console.warn('[teamstable] Skipping invalid team object:', inner_team);
-                return null;
-              }
-              return (
-                <TeamCard
-                  key={inner_team.team_key}
-                  game={game}
-                  team={inner_team}
-                ></TeamCard>
-              );
-            })
-          ) : (
-            <TeamCard
-              key={game.teams.team.team_key}
-              game={game}
-              team={game.teams.team as YahooTeam}
-            ></TeamCard>
-          );
-        })}
+            return Array.isArray(game.teams.team) ? (
+              game.teams.team.map((inner_team: YahooTeam) => {
+                // Validate team has required properties
+                if (!inner_team || !inner_team.team_key) {
+                  console.warn('[teamstable] Skipping invalid team object:', inner_team);
+                  return null;
+                }
+                return (
+                  <TeamCard
+                    key={inner_team.team_key}
+                    game={game}
+                    team={inner_team}
+                  ></TeamCard>
+                );
+              })
+            ) : (
+              <TeamCard
+                key={game.teams.team.team_key}
+                game={game}
+                team={game.teams.team as YahooTeam}
+              ></TeamCard>
+            );
+          })}
         </div>
       )}
     </Layout>

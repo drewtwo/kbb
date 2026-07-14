@@ -15,3 +15,11 @@ export function getEmptyLeaguesMessage(sport: string): string {
 
   return `You don't have any ${label} leagues`;
 }
+
+export function isEmptyLeagueError(errorMessage?: string): boolean {
+  const normalized = errorMessage?.toLowerCase() ?? '';
+
+  return normalized.includes('no leagues')
+    || normalized.includes('no teams')
+    || normalized.includes('not found');
+}
