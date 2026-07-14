@@ -80,8 +80,8 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
     const color: string = teamColorMap[teamKey] ?? TEAM_COLORS[0];
     const solidColor: string = color.replace('0.8)', '1)');
     const isHovered = hoveredDatasetIndex === index;
-    const displayColor: string = isHovered ? solidColor : color.replace('0.8)', '0.2)');
-    const displayBorderColor: string = isHovered ? solidColor : color.replace('0.8)', '0.25)');
+    const displayColor: string = isHovered || hoveredDatasetIndex === null ? color : color.replace('0.8)', '0.2)');
+    const displayBorderColor: string = isHovered || hoveredDatasetIndex === null ? solidColor : color.replace('0.8)', '0.25)');
 
     const data: (number | null)[] = teamEntry.weekly.map(
       (weekStats: StatEntry[]) => {
@@ -109,8 +109,8 @@ const LeagueWeeklyChart: React.FC<LeagueWeeklyChartProps> = ({
       data,
       borderColor: displayBorderColor,
       backgroundColor: displayColor,
-      borderWidth: isHovered ? 2.5 : 1.75,
-      pointRadius: isHovered ? 3 : 1.5,
+      borderWidth: isHovered || hoveredDatasetIndex === null ? 2.5 : 1.75,
+      pointRadius: isHovered || hoveredDatasetIndex === null ? 3 : 1.5,
       pointHoverRadius: 5,
       tension: 0.3,
       spanGaps: true,
