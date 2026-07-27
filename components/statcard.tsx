@@ -7,6 +7,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import styles from './statcard.module.css';
@@ -18,7 +19,8 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
 interface Team {
@@ -63,11 +65,28 @@ interface StatCardProps {
 const StatCard = ({
   name,
   shortName: _shortName,
-  delta: _delta,
-  deltaDirection: _deltaDirection,
-  currentValue: _currentValue,
+  delta,
+  deltaDirection,
+  currentValue,
   chartData,
 }: StatCardProps) => {
+  // Determine if delta is positive or negative
+  const isDeltaPositive = deltaDirection > 0;
+  const isDeltaNegative = deltaDirection < 0;
+
+  // Determine chart color based on delta direction
+  const chartColor = isDeltaPositive
+    ? 'rgba(34, 197, 94, 0.5)'
+    : isDeltaNegative
+      ? 'rgba(239, 68, 68, 0.5)'
+      : 'rgba(59, 130, 246, 0.5)';
+
+  const borderColor = isDeltaPositive
+    ? 'rgba(34, 197, 94, 1)'
+    : isDeltaNegative
+      ? 'rgba(239, 68, 68, 1)'
+      : 'rgba(59, 130, 246, 1)';
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -76,26 +95,72 @@ const StatCard = ({
         display: false,
       },
       title: {
-        display: true,
-        text: name,
-        font: {
-          size: 14,
+        display: false,
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        padding: 12,
+        titleFont: {
+          size: 12,
           weight: 'bold' as const,
         },
-        padding: {
-          bottom: 10,
+        bodyFont: {
+          size: 11,
         },
+        borderColor: borderColor,
+        borderWidth: 1,
       },
     },
     scales: {
       y: {
         beginAtZero: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+          drawBorder: false,
+        },
+        ticks: {
+          font: {
+            size: 10,
+          },
+          color: '#9ca3af',
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          font: {
+            size: 10,
+          },
+          color: '#9ca3af',
+        },
       },
     },
   };
 
   return (
     <div className={styles.cardContainer}>
+      <div className={styles.cardHeader}>
+        <h3 className={styles.cardTitle}>{name}</h3>
+        <div className={styles.valueContainer}>
+          <span className={styles.currentValue}>{currentValue}</span>
+          <div
+            className={`${styles.deltaIndicator} ${
+              isDeltaPositive
+                ? styles.deltaPositive
+                : isDeltaNegative
+                  ? styles.deltaNegative
+                  : styles.deltaNeutral
+            }`}
+          >
+            <span className={styles.deltaArrow}>
+              {isDeltaPositive ? '↑' : isDeltaNegative ? '↓' : '→'}
+            </span>
+            <span className={styles.deltaValue}>{delta}</span>
+          </div>
+        </div>
+      </div>
       <div className={styles.chartContainer}>
         <Line
           datasetIdKey="test"
@@ -105,6 +170,16 @@ const StatCard = ({
               {
                 label: name,
                 data: chartData,
+                borderColor: borderColor,
+                backgroundColor: chartColor,
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: borderColor,
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 6,
               },
             ],
           }}
@@ -113,15 +188,6 @@ const StatCard = ({
       </div>
     </div>
   );
-  // <CryptoCard
-  //   currencyName={name}
-  //   currencyPrice={currentValue}
-  //   currencyShortName={shortName}
-  //   trend={delta}
-  //   trendDirection={deltaDirection}
-  //   chartColor={'green'}
-  //   chartData={chartData}
-  // />
 };
 
 export default StatCard;
