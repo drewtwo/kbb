@@ -798,19 +798,7 @@ export const validateTokenWithDetails = (
   return { valid: true, reason: '', statusCode: 200 };
 };
 
-/**
- * Validates that the token has an access token.
- *
- * @deprecated Prefer `validateTokenWithDetails` which also checks token expiry
- * and the NextAuth error flag, providing richer diagnostics for 403 errors.
- *
- * @param token - The JWT token from NextAuth
- * @returns true if token is valid, false otherwise
- */
-const validateToken = (token: Record<string, unknown> | null): boolean => {
-  const result: TokenValidationResult = validateTokenWithDetails(token);
-  return result.valid;
-};
+
 
 const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promise<unknown> => {
   return new Promise((resolve) => {
