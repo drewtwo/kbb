@@ -30,7 +30,6 @@ jobs:
         run: |
           cat > .env.local << EOF
           NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
-          NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
           YAHOO_AUTH_URL=${{ secrets.YAHOO_AUTH_URL }}
           YAHOO_TOKEN_URL=${{ secrets.YAHOO_TOKEN_URL }}
           YAHOO_CLIENT_ID=${{ secrets.YAHOO_CLIENT_ID }}
@@ -38,19 +37,20 @@ jobs:
           EOF
         # NOTE: YAHOO_CALLBACK_URL is intentionally omitted here.
         # It is automatically derived at runtime by lib/get-callback-url.ts
-        # from NEXTAUTH_URL (or VERCEL_URL for Vercel preview deployments).
+        # from NEXTAUTH_URL (or VERCEL_PROJECT_PRODUCTION_URL or VERCEL_URL).
         #
-        # NEXTAUTH_URL protocol reminder:
-        #   - Local development: must use http://  (e.g. http://localhost:3000)
-        #   - Production:        must use https:// (e.g. https://yourdomain.com)
+        # NOTE: NEXTAUTH_URL is intentionally omitted here for Vercel deployments.
+        # It is automatically bootstrapped at runtime in pages/api/auth/[...nextauth].ts
+        # from VERCEL_PROJECT_PRODUCTION_URL (production) or VERCEL_URL (preview).
+        # For non-Vercel production deployments, set NEXTAUTH_URL as a GitHub Secret.
 
       - name: Set NEXTAUTH_URL for preview deployments
         if: github.event_name == 'pull_request' && env.VERCEL_URL != ''
         run: |
           # For preview deployments, if NEXTAUTH_URL is not explicitly set in secrets,
-          # we can rely on the dynamic NEXTAUTH_URL resolution in the NextAuth config
+          # we can rely on the dynamic NEXTAUTH_URL bootstrap in the NextAuth config
           # which will use VERCEL_URL when available (https:// is prepended automatically).
-          echo "Preview deployment detected. NEXTAUTH_URL will be dynamically set using VERCEL_URL"
+          echo "Preview deployment detected. NEXTAUTH_URL will be dynamically bootstrapped using VERCEL_URL"
 
       - name: Verify .env.local was created with all required variables
         run: |
@@ -79,12 +79,6 @@ jobs:
           fi
           
           echo "✅ NEXTAUTH_SECRET is properly set"
-          
-          # Warn if NEXTAUTH_URL uses http:// in a non-localhost context (likely misconfigured)
-          if grep -q "^NEXTAUTH_URL=http://" .env.local && ! grep -q "^NEXTAUTH_URL=http://localhost" .env.local; then
-            echo "⚠️  WARNING: NEXTAUTH_URL uses http:// but does not point to localhost."
-            echo "    Production deployments must use https:// to avoid OAuth callback errors."
-          fi
 
       - name: Validate environment variables at build time
         run: |
@@ -105,14 +99,6 @@ jobs:
           echo "✅ NEXTAUTH_SECRET is set in GitHub Secrets"
           
           # Check for recommended variables
-          if [ -z "${{ secrets.NEXTAUTH_URL }}" ]; then
-            echo "⚠️  WARNING: NEXTAUTH_URL is not set in GitHub Secrets"
-            echo "    This is recommended for production deployments."
-            echo "    Use http://localhost:3000 for local dev, https://yourdomain.com for production."
-          else
-            echo "✅ NEXTAUTH_URL is set"
-          fi
-          
           if [ -z "${{ secrets.YAHOO_CLIENT_ID }}" ]; then
             echo "⚠️  WARNING: YAHOO_CLIENT_ID is not set in GitHub Secrets"
           else

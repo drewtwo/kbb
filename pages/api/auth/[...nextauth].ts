@@ -18,6 +18,31 @@ interface RefreshableJWT extends JWT {
   error?: string;
 }
 
+// ============================================================================
+// NEXTAUTH_URL Bootstrap Block
+// ============================================================================
+// This block sets process.env.NEXTAUTH_URL dynamically if it is not already set.
+// This ensures that NextAuth always has a valid base URL for OAuth callbacks,
+// even in Vercel production deployments where NEXTAUTH_URL is not explicitly set.
+//
+// Resolution order:
+// 1. Already set — do nothing
+// 2. VERCEL_PROJECT_PRODUCTION_URL — set to https://${VERCEL_PROJECT_PRODUCTION_URL}
+// 3. VERCEL_URL — set to https://${VERCEL_URL}
+// ============================================================================
+if (!process.env.NEXTAUTH_URL) {
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+    console.info(
+      '[NextAuth] NEXTAUTH_URL bootstrapped from VERCEL_PROJECT_PRODUCTION_URL:',
+      process.env.NEXTAUTH_URL
+    );
+  } else if (process.env.VERCEL_URL) {
+    process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
+    console.info('[NextAuth] NEXTAUTH_URL bootstrapped from VERCEL_URL:', process.env.NEXTAUTH_URL);
+  }
+}
+
 // Validate NEXTAUTH_SECRET at runtime
 if (!process.env.NEXTAUTH_SECRET) {
   const errorMessage = [
