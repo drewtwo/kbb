@@ -1,24 +1,19 @@
 import { useEffect } from 'react';
+import { signIn } from 'next-auth/react';
 
 /**
- * Custom signin page that directly redirects to Yahoo OAuth.
- * This page bypasses NextAuth's signIn() function to avoid state conflicts
- * that can cause session expiration errors. Instead, it directly constructs
- * the OAuth authorization URL and redirects to it.
+ * Custom signin page that delegates to NextAuth's signIn() function.
+ * Using NextAuth's built-in signIn() ensures proper PKCE/state parameter
+ * management, CSRF protection, and session creation through NextAuth's
+ * callback handler — avoiding the session expiration errors that occur
+ * when the OAuth flow is initiated outside of NextAuth.
  */
 export default function SignIn() {
   useEffect(() => {
-    // Directly redirect to Yahoo OAuth endpoint to bypass NextAuth state conflicts
-    const clientId = process.env.NEXT_PUBLIC_YAHOO_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/api/auth/callback/yahoo`;
-    const state = Math.random().toString(36).substring(7);
-    
-    // Store state in sessionStorage for verification during callback
-    sessionStorage.setItem('oauth_state', state);
-    
-    const yahooAuthUrl = `https://api.login.yahoo.com/oauth2/request_auth?client_id=${encodeURIComponent(clientId || '')}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(state)}`;
-    
-    window.location.href = yahooAuthUrl;
+    // Use NextAuth's signIn() so that state, nonce, and PKCE parameters are
+    // generated and verified by NextAuth itself, preventing OAuthSessionCheck
+    // and state-mismatch errors during the callback.
+    void signIn('yahoo', { callbackUrl: '/' });
   }, []);
 
   return (

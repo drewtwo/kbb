@@ -41,7 +41,9 @@ if (!process.env.NEXTAUTH_SECRET) {
   throw new Error(errorMessage);
 }
 
-// Get the Yahoo callback URL and log it for debugging
+// Get the Yahoo callback URL and log it for debugging.
+// This is used only for informational/debug purposes; NextAuth derives the
+// actual callback URL from NEXTAUTH_URL automatically.
 const yahooCallbackUrl = getYahooCallbackUrl();
 console.debug('[NextAuth] Yahoo OAuth callback URL:', yahooCallbackUrl);
 
@@ -61,7 +63,6 @@ export default NextAuth({
       token: process.env.YAHOO_TOKEN_URL!,
       clientId: process.env.YAHOO_CLIENT_ID!,
       clientSecret: process.env.YAHOO_CLIENT_SECRET!,
-      callbackUrl: yahooCallbackUrl,
       userinfo: 'https://api.login.yahoo.com/openid/v1/userinfo',
       profile: (profile: YahooProfile) => {
         return {
