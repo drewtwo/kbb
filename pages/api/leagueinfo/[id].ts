@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getToken } from 'next-auth/jwt';
 import {
   getLeagueTeams,
   getLeagueSettings,
@@ -9,6 +10,8 @@ import {
   extractStatCategoriesFromLeagueSettings,
   isErrorResponse,
 } from '../../../utils/yahooData';
+
+const secret = process.env.NEXTAUTH_SECRET;
 import type {
   StandingsTeam,
   TeamData,
@@ -93,6 +96,14 @@ export default async function teams(
     }
 
     const leagueIdStr: string = Array.isArray(id) ? id[0] : id;
+
+    // Log incoming request details
+    const sessionToken = await getToken({ req, secret });
+    const hasAccessToken: boolean = !!(sessionToken && sessionToken.accessToken);
+    console.info(
+      `[kbb:api] leagueinfo: ${req.method} id="${leagueIdStr}" — accessToken present: ${hasAccessToken}`
+    );
+
     console.log(`[leagueinfo API] Fetching data for league id: "${leagueIdStr}"`);
 
     // Fetch teams, settings, and standings in parallel
