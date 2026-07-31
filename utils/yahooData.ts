@@ -1138,11 +1138,11 @@ export const getLeagueStandings = async (
       try {
         const token = await getToken({ req, secret });
 
-        // Validate token before making request
-        if (!validateToken(token)) {
-          const errorMsg = 'Invalid or missing authentication token';
-          console.error(`[yahooData] getLeagueStandings: ${errorMsg}`);
-          resolve({ error: errorMsg, statusCode: 401 });
+        // Validate token before making request — checks presence, expiry, and error flag
+        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
+        if (!tokenValidation.valid) {
+          console.error(`[yahooData] getLeagueStandings: token validation failed — ${tokenValidation.reason}`);
+          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
           return;
         }
 
@@ -1560,11 +1560,11 @@ export const getWeekStats = async (
       try {
         const token = await getToken({ req, secret });
 
-        // Validate token before making request
-        if (!validateToken(token)) {
-          const errorMsg = 'Invalid or missing authentication token';
-          console.error(`[yahooData] getWeekStats: ${errorMsg}`);
-          resolve({ error: errorMsg, statusCode: 401 });
+        // Validate token before making request — checks presence, expiry, and error flag
+        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
+        if (!tokenValidation.valid) {
+          console.error(`[yahooData] getWeekStats: token validation failed — ${tokenValidation.reason}`);
+          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
           return;
         }
 
