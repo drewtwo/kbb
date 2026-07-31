@@ -815,10 +815,15 @@ const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promis
           return;
         }
 
+        const requestPath: string = buildUserGamesPath(sportFilter);
+        console.info(
+          `[kbb:yahoo] fetchTeams: GET https://fantasysports.yahooapis.com${requestPath} (sport="${sportFilter}")`
+        );
+
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
-          path: buildUserGamesPath(sportFilter),
+          path: requestPath,
           method: 'GET',
           headers: {
             Accept: '*/*',
@@ -829,7 +834,12 @@ const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promis
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
-          
+
+          const contentEncoding: string = (response.headers['content-encoding'] as string | undefined) ?? 'none';
+          console.info(
+            `[kbb:yahoo] fetchTeams: response HTTP ${response.statusCode} — content-encoding: ${contentEncoding}`
+          );
+
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
             console.error(`[yahooData] getTeams HTTP Error: ${response.statusCode} - ${response.statusMessage}`);
@@ -937,10 +947,15 @@ export const getLeagueTeams = async (
         }
 
         const leagueKeyStr = Array.isArray(league_key) ? league_key[0] : league_key;
+        const leagueTeamsPath: string = `/fantasy/v2/league/${leagueKeyStr}/teams`;
+        console.info(
+          `[kbb:yahoo] getLeagueTeams: GET https://fantasysports.yahooapis.com${leagueTeamsPath}`
+        );
+
         const options = {
           hostname: 'fantasysports.yahooapis.com',
           port: 443,
-          path: `/fantasy/v2/league/${leagueKeyStr}/teams`,
+          path: leagueTeamsPath,
           method: 'GET',
           headers: {
             Accept: '*/*',
@@ -951,7 +966,12 @@ export const getLeagueTeams = async (
 
         const request = https.request(options, (response) => {
           const chunks: Buffer[] = [];
-          
+
+          const leagueTeamsEncoding: string = (response.headers['content-encoding'] as string | undefined) ?? 'none';
+          console.info(
+            `[kbb:yahoo] getLeagueTeams: response HTTP ${response.statusCode} — content-encoding: ${leagueTeamsEncoding}`
+          );
+
           // Check HTTP status code
           if (response.statusCode && response.statusCode >= 400) {
             console.error(`[yahooData] getLeagueTeams HTTP Error: ${response.statusCode} - ${response.statusMessage}`);

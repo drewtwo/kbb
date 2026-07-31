@@ -164,9 +164,18 @@ export default NextAuth({
       session.accessToken = token.accessToken;
       session.refreshToken = token.refreshToken;
       session.error = token.error;
+
+      const userId: string = (token.sub as string | undefined) ?? 'unknown';
       if (token.error) {
-        console.warn('[NextAuth] Session callback detected token error:', token.error);
+        console.warn(
+          `[kbb:auth] session callback: token error detected for user "${userId}": ${token.error}`
+        );
+      } else {
+        console.info(
+          `[kbb:auth] session callback: session hydrated for user "${userId}" — error present: false`
+        );
       }
+
       return session;
     },
     async jwt({ token, account, user }): Promise<RefreshableJWT> {
@@ -174,7 +183,7 @@ export default NextAuth({
 
       // Initial sign in
       if (account && user) {
-        console.info('[NextAuth] JWT callback initial sign-in for user', user.id);
+        console.info('[kbb:auth] jwt callback: initial sign-in for user', user.id);
         jwtToken.accessToken = account.access_token;
         jwtToken.refreshToken = account.refresh_token ?? jwtToken.refreshToken;
         if (account.expires_at) {
@@ -191,15 +200,25 @@ export default NextAuth({
 
       // Return previous token if the access token has not expired yet
       if (jwtToken.accessTokenExpires && Date.now() < jwtToken.accessTokenExpires) {
+        const expiresAt: string = new Date(jwtToken.accessTokenExpires).toISOString();
+        console.info(
+          `[kbb:auth] jwt callback: token still valid for user "${jwtToken.sub ?? 'unknown'}" — expires at ${expiresAt}`
+        );
         return jwtToken;
       }
 
       // Access token has expired, try to refresh it
       if (jwtToken.refreshToken) {
+        console.info(
+          `[kbb:auth] jwt callback: access token expired for user "${jwtToken.sub ?? 'unknown'}" — triggering refresh`
+        );
         return refreshAccessToken(jwtToken);
       }
 
       // No refresh token available - return as-is and let the client handle sign-in
+      console.warn(
+        `[kbb:auth] jwt callback: no refresh token available for user "${jwtToken.sub ?? 'unknown'}" — setting RefreshAccessTokenError`
+      );
       jwtToken.error = 'RefreshAccessTokenError';
       return jwtToken;
     },
@@ -207,10 +226,27 @@ export default NextAuth({
 
   // Events are useful for logging
   // https://next-auth.js.org/configuration/events
-  events: {},
+  events: {
+    async signIn({ user }) {
+      console.info(`[kbb:auth] event signIn: user "${user.id}" (${user.email ?? 'no email'}) signed in`);
+    },
+    async signOut({ token }) {
+      const jwtToken: RefreshableJWT = token as RefreshableJWT;
+      console.info(`[kbb:auth] event signOut: user "${jwtToken.sub ?? 'unknown'}" signed out`);
+    },
+    async session({ token }) {
+      const jwtToken: RefreshableJWT = token as RefreshableJWT;
+      console.debug(
+        `[kbb:auth] event session: session accessed for user "${jwtToken.sub ?? 'unknown'}" — error: ${jwtToken.error ?? 'none'}`
+      );
+    },
+    async createUser({ user }) {
+      console.info(`[kbb:auth] event createUser: new user created — id="${user.id}" email="${user.email ?? 'no email'}"`);
+    },
+  },
 
   // Enable debug messages in the console if you are having problems
-  debug: false,
+  debug: true,
   logger: {
     error(code, metadata) {
       console.error('[NextAuth][error]', code, metadata);
@@ -226,68 +262,111 @@ export default NextAuth({
 
 async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT> {
   try {
-    const url = process.env.YAHOO_TOKEN_URL;
-    const clientId = process.env.YAHOO_CLIENT_ID;
-    const clientSecret = process.env.YAHOO_CLIENT_SECRET;
-    const refreshToken = token.refreshToken;
+    const url: string | undefined = process.env.YAHOO_TOKEN_URL;
+    const clientId: string | undefined = process.env.YAHOO_CLIENT_ID;
+    const clientSecret: string | undefined = process.env.YAHOO_CLIENT_SECRET;
+    const refreshToken: string | undefined = token.refreshToken;
 
     if (!url || !clientId || !clientSecret) {
-      console.error('[NextAuth] Missing Yahoo token refresh environment variables');
+      console.error('[kbb:auth] refreshAccessToken: missing Yahoo token refresh environment variables');
       token.error = 'RefreshAccessTokenError';
       return token;
     }
 
     if (!refreshToken) {
-      console.error('[NextAuth] No refresh token available to refresh access token');
+      console.error('[kbb:auth] refreshAccessToken: no refresh token available');
       token.error = 'RefreshAccessTokenError';
       return token;
     }
+
+    // Build the redirect_uri from the same logic used for the initial OAuth flow
+    const redirectUri: string = getYahooCallbackUrl();
+
+    // Mask the client ID for logging (show first 6 chars only)
+    const maskedClientId: string =
+      clientId.length > 6 ? `${clientId.slice(0, 6)}…` : '***';
+
+    console.info(
+      '[kbb:auth] refreshAccessToken: initiating token refresh',
+      JSON.stringify({
+        tokenUrl: url,
+        grant_type: 'refresh_token',
+        redirect_uri: redirectUri,
+        client_id: maskedClientId,
+      })
+    );
+
+    // Yahoo requires HTTP Basic Auth (Base64-encoded "client_id:client_secret")
+    // for the token endpoint. Sending credentials in the request body causes a
+    // 401 "invalid_client" error.
+    const basicAuthCredentials: string = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basicAuthCredentials}`,
       },
       body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
+        redirect_uri: redirectUri,
       }),
     });
 
-    const responseText = await response.text();
+    const responseText: string = await response.text();
+
+    console.info(
+      `[kbb:auth] refreshAccessToken: Yahoo token endpoint responded — HTTP ${response.status}`,
+      JSON.stringify({ status: response.status, body: responseText })
+    );
+
     let refreshedTokens: Record<string, unknown> = {};
     try {
       refreshedTokens = JSON.parse(responseText);
     } catch (parseError) {
-      console.error('[NextAuth] Failed to parse Yahoo refresh response', parseError, responseText);
+      console.error(
+        '[kbb:auth] refreshAccessToken: failed to parse Yahoo refresh response',
+        parseError,
+        responseText
+      );
       token.error = 'RefreshAccessTokenError';
       return token;
     }
 
     if (!response.ok || typeof refreshedTokens.access_token !== 'string') {
-      console.error('[NextAuth] Failed to refresh access token', response.status, refreshedTokens);
+      console.error(
+        `[kbb:auth] refreshAccessToken: token refresh failed — HTTP ${response.status}`,
+        JSON.stringify({ status: response.status, responseBody: refreshedTokens })
+      );
       token.error = 'RefreshAccessTokenError';
       return token;
     }
 
-    const accessToken = refreshedTokens.access_token as string;
-    const nextRefreshToken = typeof refreshedTokens.refresh_token === 'string'
-      ? refreshedTokens.refresh_token
-      : token.refreshToken;
-    const expiresIn = typeof refreshedTokens.expires_in === 'number'
-      ? refreshedTokens.expires_in
-      : typeof refreshedTokens.expires_in === 'string'
-      ? Number(refreshedTokens.expires_in)
-      : 3600;
+    const accessToken: string = refreshedTokens.access_token as string;
+    const nextRefreshToken: string | undefined =
+      typeof refreshedTokens.refresh_token === 'string'
+        ? refreshedTokens.refresh_token
+        : token.refreshToken;
+    const expiresIn: number =
+      typeof refreshedTokens.expires_in === 'number'
+        ? refreshedTokens.expires_in
+        : typeof refreshedTokens.expires_in === 'string'
+        ? Number(refreshedTokens.expires_in)
+        : 3600;
 
     token.accessToken = accessToken;
     token.accessTokenExpires = Date.now() + expiresIn * 1000;
     token.refreshToken = nextRefreshToken;
+
+    const newExpiryIso: string = new Date(token.accessTokenExpires).toISOString();
+    console.info(
+      `[kbb:auth] refreshAccessToken: token refresh succeeded — new access token expires at ${newExpiryIso}`
+    );
+
     return token;
   } catch (error) {
-    console.error('[NextAuth] Error refreshing access token', error);
+    console.error('[kbb:auth] refreshAccessToken: unexpected error during token refresh', error);
     token.error = 'RefreshAccessTokenError';
     return token;
   }
