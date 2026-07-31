@@ -692,20 +692,124 @@ export const convertGameIdToLeagueKey = (gameId: string): string => {
 };
 
 /**
- * Validates that the token has an access token
+ * Detailed result of token validation, including a human-readable reason for
+ * any failure.  Returned by `validateTokenWithDetails` so callers can surface
+ * a precise error message and the correct HTTP status code.
+ */
+export interface TokenValidationResult {
+  /** Whether the token passed all validation checks. */
+  valid: boolean;
+  /** Human-readable reason for failure (empty string when valid). */
+  reason: string;
+  /**
+   * Suggested HTTP status code to return to the client when the token is
+   * invalid.  Always 401 for auth failures.
+   */
+  statusCode: number;
+}
+
+/**
+ * Checks whether a JWT token is present, carries an access token, has not
+ * expired, and does not carry a refresh-token error flag set by NextAuth.
+ *
+ * This is the authoritative token-validation function used by all Yahoo API
+ * request helpers.  It replaces the previous `validateToken` boolean helper
+ * and provides richer diagnostics to help diagnose HTTP 403 errors that occur
+ * after Yahoo login when the token is stale or the refresh cycle has failed.
+ *
+ * @param token - The JWT token returned by `getToken({ req, secret })`
+ * @returns A `TokenValidationResult` describing whether the token is usable
+ */
+export const validateTokenWithDetails = (
+  token: Record<string, unknown> | null
+): TokenValidationResult => {
+  if (!token) {
+    console.error('[yahooData] validateTokenWithDetails: token is null or undefined');
+    return {
+      valid: false,
+      reason: 'No authentication token found. Please sign in.',
+      statusCode: 401,
+    };
+  }
+
+  // Check for a NextAuth error flag — this is set when the refresh cycle fails
+  // (e.g. "RefreshAccessTokenError").  A token with this flag will have an
+  // expired or missing access token and will cause Yahoo to return 401/403.
+  if (token.error) {
+    const errorValue: string = String(token.error);
+    console.error(
+      `[yahooData] validateTokenWithDetails: token carries error flag "${errorValue}". ` +
+        'The refresh cycle likely failed — user must sign in again.'
+    );
+    return {
+      valid: false,
+      reason: `Authentication error: ${errorValue}. Please sign in again to refresh your session.`,
+      statusCode: 401,
+    };
+  }
+
+  if (!token.accessToken) {
+    console.error(
+      '[yahooData] validateTokenWithDetails: token does not have an accessToken property'
+    );
+    return {
+      valid: false,
+      reason: 'Access token is missing. Please sign in again.',
+      statusCode: 401,
+    };
+  }
+
+  // Check token expiry when the expiry timestamp is available.
+  // `accessTokenExpires` is stored as a Unix-epoch millisecond value by the
+  // NextAuth JWT callback in pages/api/auth/[...nextauth].ts.
+  if (typeof token.accessTokenExpires === 'number') {
+    const nowMs: number = Date.now();
+    const expiresMs: number = token.accessTokenExpires;
+    const remainingSeconds: number = Math.floor((expiresMs - nowMs) / 1000);
+
+    if (nowMs >= expiresMs) {
+      console.error(
+        `[yahooData] validateTokenWithDetails: access token has expired ` +
+          `(expired ${Math.abs(remainingSeconds)}s ago at ${new Date(expiresMs).toISOString()}). ` +
+          'Yahoo will return 401/403 for any API call with this token.'
+      );
+      return {
+        valid: false,
+        reason:
+          'Your session has expired. Please sign in again to continue.',
+        statusCode: 401,
+      };
+    }
+
+    console.log(
+      `[yahooData] validateTokenWithDetails: token is valid, expires in ${remainingSeconds}s ` +
+        `(at ${new Date(expiresMs).toISOString()})`
+    );
+  } else {
+    // No expiry information — log a warning but allow the request to proceed.
+    // This can happen on the very first sign-in before the JWT callback has
+    // had a chance to set accessTokenExpires.
+    console.warn(
+      '[yahooData] validateTokenWithDetails: accessTokenExpires is not set on token — ' +
+        'cannot verify expiry. Proceeding with request.'
+    );
+  }
+
+  return { valid: true, reason: '', statusCode: 200 };
+};
+
+/**
+ * Validates that the token has an access token.
+ *
+ * @deprecated Prefer `validateTokenWithDetails` which also checks token expiry
+ * and the NextAuth error flag, providing richer diagnostics for 403 errors.
+ *
  * @param token - The JWT token from NextAuth
  * @returns true if token is valid, false otherwise
  */
 const validateToken = (token: Record<string, unknown> | null): boolean => {
-  if (!token) {
-    console.error('[yahooData] Token is null or undefined');
-    return false;
-  }
-  if (!token.accessToken) {
-    console.error('[yahooData] Token does not have accessToken property');
-    return false;
-  }
-  return true;
+  const result: TokenValidationResult = validateTokenWithDetails(token);
+  return result.valid;
 };
 
 const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promise<unknown> => {
@@ -714,12 +818,12 @@ const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promis
       try {
         let games: unknown = {};
         const token = await getToken({ req, secret });
-        
-        // Validate token before making request
-        if (!validateToken(token)) {
-          const errorMsg = 'Invalid or missing authentication token';
-          console.error(`[yahooData] fetchTeams: ${errorMsg}`);
-          resolve({ error: errorMsg, statusCode: 401 });
+
+        // Validate token before making request — checks presence, expiry, and error flag
+        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
+        if (!tokenValidation.valid) {
+          console.error(`[yahooData] fetchTeams: token validation failed — ${tokenValidation.reason}`);
+          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
           return;
         }
 
@@ -835,12 +939,12 @@ export const getLeagueTeams = async (
       try {
         let league: unknown = {};
         const token = await getToken({ req, secret });
-        
-        // Validate token before making request
-        if (!validateToken(token)) {
-          const errorMsg = 'Invalid or missing authentication token';
-          console.error(`[yahooData] getLeagueTeams: ${errorMsg}`);
-          resolve({ error: errorMsg, statusCode: 401 });
+
+        // Validate token before making request — checks presence, expiry, and error flag
+        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
+        if (!tokenValidation.valid) {
+          console.error(`[yahooData] getLeagueTeams: token validation failed — ${tokenValidation.reason}`);
+          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
           return;
         }
 
