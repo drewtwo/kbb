@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getToken } from 'next-auth/jwt';
 import { getLeagueTeams, convertGameIdToLeagueKey } from '../../../utils/yahooData';
+
+const secret = process.env.NEXTAUTH_SECRET;
 
 type ResponseData = {
   error?: string;
@@ -18,6 +21,14 @@ export default async function gameInfo(
 ) {
   try {
     const { gameid } = req.query;
+
+    // Log incoming request details
+    const gameIdParam: string = Array.isArray(gameid) ? (gameid[0] ?? '') : (gameid ?? '');
+    const sessionToken = await getToken({ req, secret });
+    const hasAccessToken: boolean = !!(sessionToken && sessionToken.accessToken);
+    console.info(
+      `[kbb:api] gameinfo: ${req.method} gameid="${gameIdParam}" — accessToken present: ${hasAccessToken}`
+    );
 
     if (gameid === undefined || gameid === null) {
       res.status(400).json({ error: 'No game ID provided' });

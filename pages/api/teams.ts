@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getToken } from 'next-auth/jwt';
 import { getTeams } from '../../utils/yahooData';
 import type { YahooGame, ApiErrorResponse } from '../../types/yahooFantasy';
+
+const secret = process.env.NEXTAUTH_SECRET;
 
 type ResponseData = {
   games?: YahooGame[];
@@ -48,6 +51,13 @@ export default async function teams(
     const requestedSport = Array.isArray(req.query.sport)
       ? req.query.sport[0]
       : req.query.sport;
+
+    // Log incoming request details
+    const sessionToken = await getToken({ req, secret });
+    const hasAccessToken: boolean = !!(sessionToken && sessionToken.accessToken);
+    console.info(
+      `[kbb:api] teams: ${req.method} sport="${requestedSport ?? 'mlb'}" — accessToken present: ${hasAccessToken}`
+    );
 
     const teamsData = await getTeams(req, requestedSport ?? 'mlb');
 

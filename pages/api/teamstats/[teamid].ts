@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getToken } from 'next-auth/jwt';
 import { getWeeklyStats } from '../../../utils/yahooData';
+
+const secret = process.env.NEXTAUTH_SECRET;
 
 type ResponseData = {
   name?: string;
@@ -21,6 +24,14 @@ export default async function weekStats(
     }
 
     const teamIdStr: string = Array.isArray(teamid) ? teamid[0] : teamid;
+
+    // Log incoming request details
+    const sessionToken = await getToken({ req, secret });
+    const hasAccessToken: boolean = !!(sessionToken && sessionToken.accessToken);
+    console.info(
+      `[kbb:api] teamstats: ${req.method} teamid="${teamIdStr}" — accessToken present: ${hasAccessToken}`
+    );
+
     console.log(`[teamstats API] Fetching weekly stats for team "${teamIdStr}"`);
 
     const weekly_stats: unknown[] = await getWeeklyStats(req, teamIdStr);
