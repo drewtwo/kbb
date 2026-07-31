@@ -14,6 +14,7 @@ declare global {
       NEXTAUTH_URL?: string;
       NEXTAUTH_SECRET: string; // Required in production, validated at runtime
       VERCEL_URL?: string;
+      VERCEL_PROJECT_PRODUCTION_URL?: string;
       /**
        * First week of the season to include in multi-week stat aggregation (1-based, inclusive).
        * Defaults to 1 when not set.
