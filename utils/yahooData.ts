@@ -1025,12 +1025,12 @@ export const getLeagueSettings = async (
       try {
         let league: unknown = {};
         const token = await getToken({ req, secret });
-        
-        // Validate token before making request
-        if (!validateToken(token)) {
-          const errorMsg = 'Invalid or missing authentication token';
-          console.error(`[yahooData] getLeagueSettings: ${errorMsg}`);
-          resolve({ error: errorMsg, statusCode: 401 });
+
+        // Validate token before making request — checks presence, expiry, and error flag
+        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
+        if (!tokenValidation.valid) {
+          console.error(`[yahooData] getLeagueSettings: token validation failed — ${tokenValidation.reason}`);
+          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
           return;
         }
 
