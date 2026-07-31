@@ -49,6 +49,38 @@ type ResponseData = {
   weekly_stats?: LeagueWeeklyStats;
 };
 
+/**
+ * Returns true when the given HTTP status code indicates an authentication or
+ * authorisation failure from the Yahoo API (401 Unauthorized or 403 Forbidden).
+ *
+ * Yahoo returns 403 Forbidden — rather than 401 — when an access token is
+ * present but expired or revoked.  Both codes should be surfaced to the client
+ * as an auth error so the UI can prompt the user to sign in again.
+ */
+const isAuthError = (statusCode: number | undefined): boolean =>
+  statusCode === 401 || statusCode === 403;
+
+/**
+ * Builds a human-readable error message for auth failures that clearly
+ * instructs the user to sign in again, regardless of whether Yahoo returned
+ * 401 or 403.
+ */
+const buildAuthErrorMessage = (originalError: string, statusCode: number): string => {
+  if (statusCode === 403) {
+    return (
+      'Access denied by Yahoo API (HTTP 403 Forbidden). ' +
+      'Your session token may be expired or revoked. ' +
+      'Please sign out and sign in again to obtain a fresh token. ' +
+      `(Original error: ${originalError})`
+    );
+  }
+  return (
+    'Authentication failed (HTTP 401 Unauthorized). ' +
+    'Please sign in again to continue. ' +
+    `(Original error: ${originalError})`
+  );
+};
+
 export default async function teams(
   req: NextApiRequest,
   res: NextApiResponse<ResponseData>
@@ -72,20 +104,42 @@ export default async function teams(
     ]);
     console.log('[leagueinfo API] Parallel fetch complete');
 
-    // Surface any error returned by the Yahoo API utilities
+    // Surface any error returned by the Yahoo API utilities.
+    // Treat 401 and 403 as auth errors — Yahoo returns 403 when a token is
+    // present but expired/revoked, so we must handle both codes the same way.
     if (isErrorResponse(league_teams)) {
-      console.error('[leagueinfo API] getLeagueTeams returned error:', league_teams.error);
       const statusCode: number =
         typeof league_teams.statusCode === 'number' ? league_teams.statusCode : 500;
+
+      if (isAuthError(statusCode)) {
+        const authMsg: string = buildAuthErrorMessage(league_teams.error, statusCode);
+        console.error(
+          `[leagueinfo API] getLeagueTeams auth error (HTTP ${statusCode}): ${authMsg}`
+        );
+        res.status(401).json({ error: authMsg });
+        return;
+      }
+
+      console.error('[leagueinfo API] getLeagueTeams returned error:', league_teams.error);
       res.status(statusCode).json({ error: `Failed to load league teams: ${league_teams.error}` });
       return;
     }
     console.log('[leagueinfo API] league_teams fetched successfully');
 
     if (isErrorResponse(league_settings)) {
-      console.error('[leagueinfo API] getLeagueSettings returned error:', league_settings.error);
       const statusCode: number =
         typeof league_settings.statusCode === 'number' ? league_settings.statusCode : 500;
+
+      if (isAuthError(statusCode)) {
+        const authMsg: string = buildAuthErrorMessage(league_settings.error, statusCode);
+        console.error(
+          `[leagueinfo API] getLeagueSettings auth error (HTTP ${statusCode}): ${authMsg}`
+        );
+        res.status(401).json({ error: authMsg });
+        return;
+      }
+
+      console.error('[leagueinfo API] getLeagueSettings returned error:', league_settings.error);
       res.status(statusCode).json({ error: `Failed to load league settings: ${league_settings.error}` });
       return;
     }
@@ -143,15 +197,28 @@ export default async function teams(
       );
     }
 
-    // Standings are non-fatal — if the call failed we omit them from the response
+    // Standings are non-fatal — if the call failed we omit them from the response.
+    // However, if the failure is an auth error (401/403) we still log it clearly
+    // so operators can diagnose token issues without the page appearing broken.
     let standings: StandingsTeam[] | undefined;
     let is_finished: boolean = false;
 
     if (isErrorResponse(league_standings)) {
-      console.warn(
-        '[leagueinfo API] getLeagueStandings returned error (non-fatal):',
-        league_standings.error
-      );
+      const standingsStatusCode: number =
+        typeof league_standings.statusCode === 'number' ? league_standings.statusCode : 0;
+
+      if (isAuthError(standingsStatusCode)) {
+        console.warn(
+          `[leagueinfo API] getLeagueStandings auth error (HTTP ${standingsStatusCode}) — ` +
+            'standings will be omitted from response. ' +
+            `Error: ${league_standings.error}`
+        );
+      } else {
+        console.warn(
+          '[leagueinfo API] getLeagueStandings returned error (non-fatal):',
+          league_standings.error
+        );
+      }
     } else {
       // league_standings is now a LeagueStandingsResult — extract teams and is_finished
       const rawTeams: StandingsTeam[] = league_standings.teams;
