@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState, useCallback, type ChangeEvent } from 'react';
 import useSwr from 'swr';
 import dynamic from 'next/dynamic';
 import { signIn, useSession } from 'next-auth/react';
@@ -39,15 +39,77 @@ interface ApiResponse {
   statusCode?: number;
 }
 
+/**
+ * Returns true when the API response indicates an authentication or
+ * authorisation failure (HTTP 401 or 403).
+ *
+ * Yahoo returns 403 Forbidden when a token is present but expired/revoked.
+ * The teams API normalises both to 401 before sending to the client, but we
+ * guard against both here for robustness.
+ */
+const isAuthErrorResponse = (data: ApiResponse): boolean =>
+  data.statusCode === 401 || data.statusCode === 403;
+
+/**
+ * SportSelector renders the sport-filter dropdown and an optional
+ * "Refreshing…" indicator.  Extracted to avoid repeating the JSX in every
+ * early-return branch.
+ */
+const SportSelector = ({
+  sport,
+  disabled,
+  isValidating,
+  onChange,
+}: {
+  sport: string;
+  disabled: boolean;
+  isValidating: boolean;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+}) => (
+  <div className={teamCardStyles.toolbar}>
+    <label htmlFor="sport-selector">Game type:</label>
+    <select
+      id="sport-selector"
+      value={sport}
+      onChange={onChange}
+      disabled={disabled}
+    >
+      {SPORT_OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+    {isValidating && <span>Refreshing...</span>}
+  </div>
+);
+
 export default function Index() {
   const [sport, setSport] = useState('mlb');
   const { data: session, status } = useSession();
+
+  // retryKey is incremented to force SWR to re-fetch after the user clicks
+  // "Try again" — this is a lightweight retry mechanism that avoids a full
+  // page reload while still clearing the cached error response.
+  const [retryKey, setRetryKey] = useState(0);
+
   const { data, error, isValidating } = useSwr(
-    status === 'authenticated' ? `/api/teams?sport=${encodeURIComponent(sport)}` : null,
+    status === 'authenticated'
+      ? `/api/teams?sport=${encodeURIComponent(sport)}&_retry=${retryKey}`
+      : null,
     fetcher
   );
 
-  // Check authentication status
+  const handleSportChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setSport(event.target.value);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setRetryKey((k: number) => k + 1);
+  }, []);
+
+  // ── Authentication loading / unauthenticated states ──────────────────────
+
   if (status === 'loading') {
     return (
       <Layout>
@@ -68,30 +130,34 @@ export default function Index() {
     );
   }
 
-  const handleSportChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    setSport(event.target.value);
-  };
+  // ── Session integrity checks ─────────────────────────────────────────────
 
-  // Validate session has required data
   if (status === 'authenticated' && !session?.user) {
     console.error('[teamstable] Session authenticated but user data missing');
     return (
       <Layout>
         <div className={teamCardStyles.errorContainer}>
-          <p className={teamCardStyles.errorText}>Session error: User data not available. Please sign in again.</p>
+          <p className={teamCardStyles.errorText}>
+            Session error: User data not available. Please sign in again.
+          </p>
         </div>
       </Layout>
     );
   }
 
-  // Validate session has access token
   if (status === 'authenticated' && !session?.accessToken) {
     console.error('[teamstable] Session authenticated but accessToken missing');
     return (
       <Layout>
         <div className={teamCardStyles.errorContainer}>
-          <p className={teamCardStyles.errorText}>Authentication error: Access token not available. Please sign in again.</p>
-          <button className={teamCardStyles.signInButton} type="button" onClick={() => signIn()}>
+          <p className={teamCardStyles.errorText}>
+            Authentication error: Access token not available. Please sign in again.
+          </p>
+          <button
+            className={teamCardStyles.signInButton}
+            type="button"
+            onClick={() => signIn()}
+          >
             Sign in again
           </button>
         </div>
@@ -99,15 +165,24 @@ export default function Index() {
     );
   }
 
+  // Surface NextAuth token-refresh errors (e.g. "RefreshAccessTokenError").
+  // This is set by the JWT callback in pages/api/auth/[...nextauth].ts when
+  // the Yahoo refresh token has expired or been revoked, which will cause
+  // every subsequent Yahoo API call to return 401 or 403.
   if (session?.error) {
     console.warn('[teamstable] Session error present:', session.error);
     return (
       <Layout>
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>
-            Session error: {session.error}. Please sign in again.
+            Your session has expired ({session.error}). Please sign in again to
+            refresh your Yahoo access token.
           </p>
-          <button className={teamCardStyles.signInButton} type="button" onClick={() => signIn()}>
+          <button
+            className={teamCardStyles.signInButton}
+            type="button"
+            onClick={() => signIn()}
+          >
             Sign in again
           </button>
         </div>
@@ -116,8 +191,10 @@ export default function Index() {
   }
 
   if (error) {
-    console.error('[teamstable] Failed to load leagues:', error);
+    console.error('[teamstable] SWR fetch error:', error);
   }
+
+  // ── Loading state ────────────────────────────────────────────────────────
 
   if (!data && !error) {
     return (
@@ -129,39 +206,35 @@ export default function Index() {
     );
   }
 
-  const isEmptyState = Boolean(
-    data && typeof data === 'object' && 'error' in data && isEmptyLeagueError((data as ApiResponse).error)
-  );
+  // ── API error responses ──────────────────────────────────────────────────
 
-  // Check if data contains an error response
   if (data && typeof data === 'object' && 'error' in data) {
     const errorData = data as ApiResponse;
     console.error('[teamstable] API returned error:', errorData);
 
-    if (errorData.statusCode === 401) {
+    // Auth errors (401 / 403): prompt the user to sign in again.
+    // Yahoo returns 403 when a token is present but expired or revoked; the
+    // teams API normalises this to 401 before sending to the client, but we
+    // check both here for defence-in-depth.
+    if (isAuthErrorResponse(errorData)) {
       return (
         <Layout>
-          <div className={teamCardStyles.toolbar}>
-            <label htmlFor="sport-selector">Game type:</label>
-            <select
-              id="sport-selector"
-              value={sport}
-              onChange={handleSportChange}
-              disabled={status !== 'authenticated' || isValidating}
-            >
-              {SPORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {isValidating && <span>Refreshing...</span>}
-          </div>
+          <SportSelector
+            sport={sport}
+            disabled={status !== 'authenticated' || isValidating}
+            isValidating={isValidating}
+            onChange={handleSportChange}
+          />
           <div className={teamCardStyles.errorContainer}>
             <p className={teamCardStyles.errorText}>
-              Authentication error: Your session has expired. Please sign in again.
+              Your session has expired or been revoked by Yahoo. Please sign in
+              again to continue.
             </p>
-            <button className={teamCardStyles.signInButton} type="button" onClick={() => signIn()}>
+            <button
+              className={teamCardStyles.signInButton}
+              type="button"
+              onClick={() => signIn()}
+            >
               Sign in again
             </button>
           </div>
@@ -169,25 +242,17 @@ export default function Index() {
       );
     }
 
+    // Empty-league state: no teams found for the selected sport.
+    const isEmptyState: boolean = isEmptyLeagueError(errorData.error);
     if (isEmptyState) {
       return (
         <Layout>
-          <div className={teamCardStyles.toolbar}>
-            <label htmlFor="sport-selector">Game type:</label>
-            <select
-              id="sport-selector"
-              value={sport}
-              onChange={handleSportChange}
-              disabled={status !== 'authenticated' || isValidating}
-            >
-              {SPORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {isValidating && <span>Refreshing...</span>}
-          </div>
+          <SportSelector
+            sport={sport}
+            disabled={status !== 'authenticated' || isValidating}
+            isValidating={isValidating}
+            onChange={handleSportChange}
+          />
           <div className={teamCardStyles.errorContainer}>
             <p className={teamCardStyles.errorText}>{getEmptyLeaguesMessage(sport)}</p>
           </div>
@@ -195,81 +260,72 @@ export default function Index() {
       );
     }
 
+    // Generic API error with a retry button.
     return (
       <Layout>
-        <div className={teamCardStyles.toolbar}>
-          <label htmlFor="sport-selector">Game type:</label>
-          <select
-            id="sport-selector"
-            value={sport}
-            onChange={handleSportChange}
-            disabled={status !== 'authenticated' || isValidating}
-          >
-            {SPORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {isValidating && <span>Refreshing...</span>}
-        </div>
+        <SportSelector
+          sport={sport}
+          disabled={status !== 'authenticated' || isValidating}
+          isValidating={isValidating}
+          onChange={handleSportChange}
+        />
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>
             Error loading leagues: {errorData.error || 'Unknown error'}
           </p>
+          <button
+            className={teamCardStyles.signInButton}
+            type="button"
+            onClick={handleRetry}
+          >
+            Try again
+          </button>
         </div>
       </Layout>
     );
   }
 
-  // Validate that data has games array
+  // ── Invalid data shape ───────────────────────────────────────────────────
+
   if (!data?.games || !Array.isArray(data.games)) {
-    console.error('[teamstable] Invalid data structure: missing or invalid games array', data);
+    console.error(
+      '[teamstable] Invalid data structure: missing or invalid games array',
+      data
+    );
     return (
       <Layout>
-        <div className={teamCardStyles.toolbar}>
-          <label htmlFor="sport-selector">Game type:</label>
-          <select
-            id="sport-selector"
-            value={sport}
-            onChange={handleSportChange}
-            disabled={status !== 'authenticated' || isValidating}
-          >
-            {SPORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {isValidating && <span>Refreshing...</span>}
-        </div>
+        <SportSelector
+          sport={sport}
+          disabled={status !== 'authenticated' || isValidating}
+          isValidating={isValidating}
+          onChange={handleSportChange}
+        />
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>
             Error: Invalid response format from server. Please try again later.
           </p>
+          <button
+            className={teamCardStyles.signInButton}
+            type="button"
+            onClick={handleRetry}
+          >
+            Try again
+          </button>
         </div>
       </Layout>
     );
   }
 
+  // ── Happy path ───────────────────────────────────────────────────────────
+
   return (
     <Layout>
-      <div className={teamCardStyles.toolbar}>
-        <label htmlFor="sport-selector">Game type:</label>
-        <select
-          id="sport-selector"
-          value={sport}
-          onChange={handleSportChange}
-          disabled={status !== 'authenticated' || isValidating}
-        >
-          {SPORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        {isValidating && <span>Refreshing...</span>}
-      </div>
+      <SportSelector
+        sport={sport}
+        disabled={status !== 'authenticated' || isValidating}
+        isValidating={isValidating}
+        onChange={handleSportChange}
+      />
       {data.games.length === 0 ? (
         <div className={teamCardStyles.errorContainer}>
           <p className={teamCardStyles.errorText}>{getEmptyLeaguesMessage(sport)}</p>
@@ -295,7 +351,7 @@ export default function Index() {
                     key={inner_team.team_key}
                     game={game}
                     team={inner_team}
-                  ></TeamCard>
+                  />
                 );
               })
             ) : (
@@ -303,7 +359,7 @@ export default function Index() {
                 key={game.teams.team.team_key}
                 game={game}
                 team={game.teams.team as YahooTeam}
-              ></TeamCard>
+              />
             );
           })}
         </div>
