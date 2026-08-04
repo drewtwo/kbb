@@ -5,6 +5,7 @@ import xml2js from 'xml2js';
 import { IncomingMessage } from 'http';
 import { NextApiRequest } from 'next';
 
+
 const secret = process.env.NEXTAUTH_SECRET;
 
 const parserOptions = { explicitArray: false };
