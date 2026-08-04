@@ -2,7 +2,6 @@ import NextAuth from 'next-auth';
 import type { OAuthConfig } from 'next-auth/providers/oauth';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
-import { getYahooCallbackUrl } from '../../../lib/get-callback-url';
 
 interface YahooProfile {
   sub: string;
@@ -16,31 +15,6 @@ interface RefreshableJWT extends JWT {
   refreshToken?: string;
   accessTokenExpires?: number;
   error?: string;
-}
-
-// ============================================================================
-// NEXTAUTH_URL Bootstrap Block
-// ============================================================================
-// This block sets process.env.NEXTAUTH_URL dynamically if it is not already set.
-// This ensures that NextAuth always has a valid base URL for OAuth callbacks,
-// even in Vercel production deployments where NEXTAUTH_URL is not explicitly set.
-//
-// Resolution order:
-// 1. Already set — do nothing
-// 2. VERCEL_PROJECT_PRODUCTION_URL — set to https://${VERCEL_PROJECT_PRODUCTION_URL}
-// 3. VERCEL_URL — set to https://${VERCEL_URL}
-// ============================================================================
-if (!process.env.NEXTAUTH_URL) {
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-    console.info(
-      '[NextAuth] NEXTAUTH_URL bootstrapped from VERCEL_PROJECT_PRODUCTION_URL:',
-      process.env.NEXTAUTH_URL
-    );
-  } else if (process.env.VERCEL_URL) {
-    process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
-    console.info('[NextAuth] NEXTAUTH_URL bootstrapped from VERCEL_URL:', process.env.NEXTAUTH_URL);
-  }
 }
 
 // Validate NEXTAUTH_SECRET at runtime
@@ -65,12 +39,6 @@ if (!process.env.NEXTAUTH_SECRET) {
   console.error(errorMessage);
   throw new Error(errorMessage);
 }
-
-// Get the Yahoo callback URL and log it for debugging.
-// This is used only for informational/debug purposes; NextAuth derives the
-// actual callback URL from NEXTAUTH_URL automatically.
-const yahooCallbackUrl = getYahooCallbackUrl();
-console.debug('[NextAuth] Yahoo OAuth callback URL:', yahooCallbackUrl);
 
 // For more information on each option (and a full list of options) go to
 // https://next-auth.js.org/configuration/options
@@ -279,9 +247,6 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
       return token;
     }
 
-    // Build the redirect_uri from the same logic used for the initial OAuth flow
-    const redirectUri: string = getYahooCallbackUrl();
-
     // Mask the client ID for logging (show first 6 chars only)
     const maskedClientId: string =
       clientId.length > 6 ? `${clientId.slice(0, 6)}…` : '***';
@@ -291,7 +256,6 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
       JSON.stringify({
         tokenUrl: url,
         grant_type: 'refresh_token',
-        redirect_uri: redirectUri,
         client_id: maskedClientId,
       })
     );
@@ -310,7 +274,6 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
-        redirect_uri: redirectUri,
       }),
     });
 

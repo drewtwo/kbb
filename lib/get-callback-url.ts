@@ -1,79 +1,11 @@
 /**
- * Dynamic Yahoo Callback URL Generator
+ * Yahoo Callback URL
  *
- * This module provides a utility function to dynamically generate the Yahoo
- * OAuth callback URL at runtime, derived from the NEXTAUTH_URL environment
- * variable. This eliminates the need for a separate YAHOO_CALLBACK_URL
- * environment variable.
+ * This module provides the Yahoo OAuth callback URL.
  */
 
-/** The path appended to the base URL to form the Yahoo OAuth callback URL. */
-const YAHOO_CALLBACK_PATH: string = '/api/auth/callback/yahoo';
+const YAHOO_CALLBACK_URL: string = process.env.YAHOO_CALLBACK_URL || 'http://localhost:3000/api/auth/callback/yahoo';
 
-/**
- * Resolves the base URL for the application at runtime.
- *
- * Resolution order:
- * 1. `NEXTAUTH_URL` — explicitly configured base URL (local dev or production)
- * 2. `VERCEL_PROJECT_PRODUCTION_URL` — automatically provided by Vercel for production deployments
- * 3. `VERCEL_URL` — automatically provided by Vercel for preview deployments
- * 4. `http://localhost:3000` — fallback for local development
- *
- * @returns The resolved base URL string (no trailing slash).
- */
-function resolveBaseUrl(): string {
-  if (process.env.NEXTAUTH_URL) {
-    const url = process.env.NEXTAUTH_URL.replace(/\/$/, '');
-    console.debug('[getYahooCallbackUrl] Using NEXTAUTH_URL:', url);
-    return url;
-  }
-
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    const url = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-    console.debug('[getYahooCallbackUrl] Using VERCEL_PROJECT_PRODUCTION_URL:', url);
-    return url;
-  }
-
-  if (process.env.VERCEL_URL) {
-    const url = `https://${process.env.VERCEL_URL}`;
-    console.debug('[getYahooCallbackUrl] Using VERCEL_URL:', url);
-    return url;
-  }
-
-  const fallbackUrl = 'http://localhost:3000';
-  console.debug('[getYahooCallbackUrl] Using fallback localhost URL:', fallbackUrl);
-  return fallbackUrl;
-}
-
-/**
- * Dynamically generates the Yahoo OAuth callback URL at runtime.
- *
- * The URL is derived from the application's base URL (resolved via
- * `NEXTAUTH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, or `VERCEL_URL`) with the standard NextAuth Yahoo callback
- * path appended. No separate `YAHOO_CALLBACK_URL` environment variable is
- * required.
- *
- * @returns The full Yahoo OAuth callback URL string.
- *
- * @example
- * // Local development (NEXTAUTH_URL=http://localhost:3000)
- * getYahooCallbackUrl(); // => "http://localhost:3000/api/auth/callback/yahoo"
- *
- * @example
- * // Production (NEXTAUTH_URL=https://yourdomain.com)
- * getYahooCallbackUrl(); // => "https://yourdomain.com/api/auth/callback/yahoo"
- *
- * @example
- * // Vercel production (VERCEL_PROJECT_PRODUCTION_URL=my-app.vercel.app)
- * getYahooCallbackUrl(); // => "https://my-app.vercel.app/api/auth/callback/yahoo"
- *
- * @example
- * // Vercel preview (VERCEL_URL=my-app-abc123.vercel.app)
- * getYahooCallbackUrl(); // => "https://my-app-abc123.vercel.app/api/auth/callback/yahoo"
- */
 export function getYahooCallbackUrl(): string {
-  const baseUrl: string = resolveBaseUrl();
-  const callbackUrl: string = `${baseUrl}${YAHOO_CALLBACK_PATH}`;
-  console.debug('[getYahooCallbackUrl] Generated callback URL:', callbackUrl);
-  return callbackUrl;
+  return YAHOO_CALLBACK_URL;
 }
