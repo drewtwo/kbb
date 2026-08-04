@@ -807,11 +807,10 @@ const fetchTeams = async (req: NextApiRequest, sportFilter: SportFilter): Promis
         let games: unknown = {};
         const token = await getToken({ req, secret });
 
-        // Validate token before making request — checks presence, expiry, and error flag
-        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
-        if (!tokenValidation.valid) {
-          console.error(`[yahooData] fetchTeams: token validation failed — ${tokenValidation.reason}`);
-          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
+        // Validate token before making request
+        if (!validateToken(token)) {
+          console.error('[yahooData] fetchTeams: token validation failed');
+          resolve({ error: 'Token validation failed' });
           return;
         }
 
@@ -938,11 +937,10 @@ export const getLeagueTeams = async (
         let league: unknown = {};
         const token = await getToken({ req, secret });
 
-        // Validate token before making request — checks presence, expiry, and error flag
-        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
-        if (!tokenValidation.valid) {
-          console.error(`[yahooData] getLeagueTeams: token validation failed — ${tokenValidation.reason}`);
-          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
+        // Validate token before making request
+        if (!validateToken(token)) {
+          console.error('[yahooData] getLeagueTeams: token validation failed');
+          resolve({ error: 'Token validation failed' });
           return;
         }
 
@@ -1034,11 +1032,10 @@ export const getLeagueSettings = async (
         let league: unknown = {};
         const token = await getToken({ req, secret });
 
-        // Validate token before making request — checks presence, expiry, and error flag
-        const tokenValidation: TokenValidationResult = validateTokenWithDetails(token);
-        if (!tokenValidation.valid) {
-          console.error(`[yahooData] getLeagueSettings: token validation failed — ${tokenValidation.reason}`);
-          resolve({ error: tokenValidation.reason, statusCode: tokenValidation.statusCode });
+        // Validate token before making request
+        if (!validateToken(token)) {
+          console.error('[yahooData] getLeagueSettings: token validation failed');
+          resolve({ error: 'Token validation failed' });
           return;
         }
 
