@@ -3,6 +3,7 @@ import type { OAuthConfig } from 'next-auth/providers/oauth';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 
+
 interface YahooProfile {
   sub: string;
   name: string;
