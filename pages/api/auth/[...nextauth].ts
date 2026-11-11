@@ -292,7 +292,8 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
     } catch (parseError) {
       console.error(
         '[kbb:auth] refreshAccessToken: failed to parse Yahoo refresh response',
-        parseError,
+        // Log only the error type: a SyntaxError message can echo part of the body.
+        parseError instanceof Error ? parseError.name : 'UnknownError',
         // Never log the raw body: it may contain access/refresh tokens.
         JSON.stringify({ status: response.status, bodyLength: responseText.length })
       );
