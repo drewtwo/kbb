@@ -282,7 +282,8 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
 
     console.info(
       `[kbb:auth] refreshAccessToken: Yahoo token endpoint responded — HTTP ${response.status}`,
-      JSON.stringify({ status: response.status, body: responseText })
+      // Never log the response body: it contains access/refresh tokens.
+      JSON.stringify({ status: response.status })
     );
 
     let refreshedTokens: Record<string, unknown> = {};
@@ -291,8 +292,10 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
     } catch (parseError) {
       console.error(
         '[kbb:auth] refreshAccessToken: failed to parse Yahoo refresh response',
-        parseError,
-        responseText
+        // Log only the error type: a SyntaxError message can echo part of the body.
+        parseError instanceof Error ? parseError.name : 'UnknownError',
+        // Never log the raw body: it may contain access/refresh tokens.
+        JSON.stringify({ status: response.status, bodyLength: responseText.length })
       );
       token.error = 'RefreshAccessTokenError';
       return token;
@@ -301,7 +304,11 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
     if (!response.ok || typeof refreshedTokens.access_token !== 'string') {
       console.error(
         `[kbb:auth] refreshAccessToken: token refresh failed — HTTP ${response.status}`,
-        JSON.stringify({ status: response.status, responseBody: refreshedTokens })
+        // Log only the status and the OAuth error code, never the full body (it may contain tokens).
+        JSON.stringify({
+          status: response.status,
+          error: typeof refreshedTokens.error === 'string' ? refreshedTokens.error : undefined,
+        })
       );
       token.error = 'RefreshAccessTokenError';
       return token;
