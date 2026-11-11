@@ -84,12 +84,12 @@ describe('nextauth refreshAccessToken logging', () => {
     expect(output).toContain('HTTP 200');
   });
 
-  it('logs only status and OAuth error fields on a failed refresh', async () => {
+  it('logs only status and the OAuth error code on a failed refresh', async () => {
     mockFetch(
       400,
       JSON.stringify({
         error: 'invalid_grant',
-        error_description: 'expired',
+        error_description: 'free-text-description',
         access_token: ACCESS_TOKEN,
         refresh_token: REFRESH_TOKEN,
       })
@@ -101,6 +101,7 @@ describe('nextauth refreshAccessToken logging', () => {
     expect(output).not.toContain(ACCESS_TOKEN);
     expect(output).not.toContain(REFRESH_TOKEN);
     expect(output).toContain('invalid_grant');
+    expect(output).not.toContain('free-text-description');
   });
 
   it('does not log the raw body when the response is not valid JSON', async () => {

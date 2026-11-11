@@ -304,14 +304,10 @@ async function refreshAccessToken(token: RefreshableJWT): Promise<RefreshableJWT
     if (!response.ok || typeof refreshedTokens.access_token !== 'string') {
       console.error(
         `[kbb:auth] refreshAccessToken: token refresh failed — HTTP ${response.status}`,
-        // Log only the OAuth error fields, never the full body (it may contain tokens).
+        // Log only the status and the OAuth error code, never the full body (it may contain tokens).
         JSON.stringify({
           status: response.status,
           error: typeof refreshedTokens.error === 'string' ? refreshedTokens.error : undefined,
-          error_description:
-            typeof refreshedTokens.error_description === 'string'
-              ? refreshedTokens.error_description
-              : undefined,
         })
       );
       token.error = 'RefreshAccessTokenError';
